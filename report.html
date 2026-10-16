@@ -94,6 +94,8 @@ tr.detr .oo{position:sticky;left:8px;max-width:min(560px,calc(100vw - 72px))}
 .trash{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
 .trash summary{cursor:pointer;font-weight:600;color:var(--muted)}
 .trash .btn{padding:5px 10px;font-size:.8rem}
+@keyframes flash{from{background:color-mix(in srgb,var(--yolk) 45%,transparent)}to{background:transparent}}
+tr.flash td{animation:flash 2.5s ease-out}
 .wab{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;background:#25d366;color:#0b2e17;font:700 .74rem Inter,sans-serif;text-decoration:none;white-space:nowrap;vertical-align:1px}
 .stb.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
 .note{color:var(--muted);font-size:.82rem;font-style:italic}
@@ -647,12 +649,13 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('button'); if(!b) return;
   const d = b.dataset;
   if (d.decide){ const o = D.orders.find(x=>x.id===d.id); if(!o) return;
-    const w = d.decide!=='attesa' && o.telefono ? window.open('', '_blank') : null;   // aperta subito, altrimenti il browser la blocca
+    b.disabled = true;
     try{ const j = await post({action:'decide', id:o.id, value:d.decide}); if(!j.ok) throw new Error(j.error);
-      const url = d.decide!=='attesa' ? waLink(o, d.decide==='ok') : '';
-      if (w) { if (url) w.location.href = url; else w.close(); }
-      await load(); toast(d.decide==='ok' ? 'Confermata: invia il messaggio su WhatsApp' : d.decide==='rifiutata' ? 'Rifiutata: invia il messaggio su WhatsApp' : 'Rimessa in attesa');
-    }catch(x){ if (w) w.close(); toast(x.message); }
+      if (d.decide==='ok' && pf==='att'){ pf=''; document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f==='')); }
+      await load();
+      const row = document.querySelector(`#ptb [data-sel="${CSS.escape(o.id)}"]`); if (row){ const tr=row.closest('tr'); tr.classList.add('flash'); tr.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>tr.classList.remove('flash'),2500); }
+      toast(d.decide==='ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : d.decide==='rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
+    }catch(x){ toast(x.message); b.disabled = false; }
     return; }
   if (d.pay){ const o = D.orders.find(x=>x.id===d.id); if(!o) return;
     if (o.pagato && o.metodo===d.pay) flag([o.id],'pagato',false); else flag([o.id],'pagato',true,d.pay);
