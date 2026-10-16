@@ -449,9 +449,14 @@ async function request_(db, env, d, rid) {
     .bind(newId('p'), now_(), nome, cognome, telefono, q1, q6, uova, euro, note, d.perIl).run();
   const res = { ok: true, richiesta: true, uova, euro, perIl: d.perIl };
   if (rid) await db.prepare('INSERT OR REPLACE INTO idem (rid, res, ts) VALUES (?, ?, ?)').bind(rid, JSON.stringify(res), Date.now()).run();
+  const giorno = new Date(d.perIl + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const ack = 'Ciao ' + String(nome).split(' ')[0] + '! Ho ricevuto la tua richiesta di ' + (uova === 1 ? '1 uovo' : uova + ' uova') + ' per ' + giorno + ' (' + eurTxt(euro) + '). ' +
+    'Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚';
   await telegram(env, db, '📅 OviAmo – nuova richiesta da confermare\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') +
     ' per ' + dIt(d.perIl) + '\nTel: ' + telefono + (note ? '\nNote: ' + note : '') +
-    '\nUova disponibili ora: ' + await available_(db) + '\n' + SITE + '/report.html');
+    '\nUova disponibili ora: ' + await available_(db),
+    [...(waNum(telefono) ? [[{ text: '💬 Rispondi su WhatsApp (ricevuta)', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(ack) }]] : []),
+     [{ text: '📋 Apri il report per confermare', url: SITE + '/report.html' }]]);
   return json(res);
 }
 
