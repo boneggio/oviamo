@@ -353,6 +353,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case 'move': if (!canCost) break; return await move_(db, d, u);
       case 'payDel': if (!canCost) break; return await payDel_(db, d);
       case 'contactOrder': if (!canCost) break; return await contactOrder_(db, d);
+      case 'decide': if (!canCost) break; return await decide_(db, d);
       case 'delOrders': if (!canCost) break; return await delOrders_(db, d);   // va nel cestino: si ripristina dal report
       case 'contactSave': return await contactSave_(db, d);
       case 'contactDel': await db.prepare('DELETE FROM contacts WHERE id = ?').bind(String(d.id)).run(); return json({ ok: true, contacts: await contacts_(db) });
@@ -466,12 +467,15 @@ async function decide_(db, d) {
   if (!['ok', 'rifiutata', 'attesa'].includes(v)) return json({ ok: false, error: 'Valore non valido' });
   let r;
   if (v === 'ok') {
-    r = await db.prepare(`UPDATE orders SET stato = 'ok' WHERE id = ? AND stato <> 'ok' AND ${LOADED} - ${BOOKED} >= uova`).bind(id).run();
+    // d.force: conferma anche se adesso le uova non bastano (le prossime caricate andranno prima a questa)
+    r = d.force ? await db.prepare(`UPDATE orders SET stato = 'ok' WHERE id = ? AND stato <> 'ok'`).bind(id).run()
+      : await db.prepare(`UPDATE orders SET stato = 'ok' WHERE id = ? AND stato <> 'ok' AND ${LOADED} - ${BOOKED} >= uova`).bind(id).run();
     if (!r.meta.changes) {
       const o = await db.prepare('SELECT uova, stato FROM orders WHERE id = ?').bind(id).first();
       if (!o) return json({ ok: false, error: 'Richiesta non trovata' });
       if (o.stato === 'ok') return json({ ok: true, already: true });
-      return json({ ok: false, error: 'Uova insufficienti: ne servono ' + o.uova + ', disponibili ' + await available_(db) + '. Carica prima le uova.' });
+      const av = await available_(db);
+      return json({ ok: false, short: true, need: o.uova, available: av, error: 'Uova insufficienti: ne servono ' + o.uova + ', disponibili ' + av + '.' });
     }
   } else {
     r = await db.prepare('UPDATE orders SET stato = ? WHERE id = ?').bind(v, id).run();
