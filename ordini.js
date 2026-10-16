@@ -65,7 +65,17 @@
   const uTxt = n => n === 1 ? '1 uovo' : n + ' uova';
   const MET = { contanti: '💶 Contanti', satispay: '<span class="sp">S</span> Satispay' };
   const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
-  const waConf = o => { const n = waNum(o.telefono); return n && o.stato !== 'attesa' && o.stato !== 'rifiutata' ? 'https://wa.me/' + n + '?text=' + encodeURIComponent('Ciao ' + String(o.nome || '').split(' ')[0] + '! Ho ricevuto la tua prenotazione di ' + uTxt(o.uova) + ' (' + eur(o.euro) + '). Puoi pagare in contanti o con Satispay al 393 160 9967. Grazie! – OviAmo 🥚') : ''; };
+  const giorno = d => new Date(d + 'T12:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  /** Messaggio WhatsApp adatto alla prenotazione: ricevuta, conferma (anche per una data) o rifiuto */
+  const waText = o => {
+    const n = String(o.nome || '').split(' ')[0], nm = n.charAt(0).toUpperCase() + n.slice(1), q = uTxt(o.uova), e = eur(o.euro), g = o.perIl ? giorno(o.perIl) : '';
+    const pay = ' Puoi pagare in contanti o con Satispay al 393 160 9967.';
+    if (o.stato === 'attesa') return `Ciao ${nm}! Ho ricevuto la tua richiesta di ${q} per ${g} (${e}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚`;
+    if (o.stato === 'rifiutata') return `Ciao ${nm}, mi dispiace: per ${g || 'ora'} non riusciamo ad avere le ${q} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚`;
+    if (g) return `Ciao ${nm}! Ti confermo le tue ${q} per ${g} (${e}).${pay} Grazie! – OviAmo 🥚`;
+    return `Ciao ${nm}! Ho ricevuto la tua prenotazione di ${q} (${e}).${pay} Grazie! – OviAmo 🥚`;
+  };
+  const waConf = o => { const n = waNum(o.telefono); return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(waText(o)) : ''; };
   const forms = new Map();   // id → { mode, n, e, m, eTouched }
 
   function sumTxt(o, f) {
@@ -179,5 +189,5 @@
       run({ action: 'move', id, uova: f.n, euro, metodo: f.m || '' }, 'Registrato');
     });
   }
-  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur };
+  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText };
 })();
