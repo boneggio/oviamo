@@ -83,16 +83,24 @@ const tgApi = (env, method, body) => fetch('https://api.telegram.org/bot' + env.
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
 }).then(r => r.json());
 
-async function telegram(env, db, text) {
+/** Numero per wa.me: solo cifre, con prefisso 39 per i cellulari italiani scritti senza */
+const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
+const eurTxt = e => (+e || 0).toFixed(2).replace('.', ',') + ' €';
+/** Messaggio di conferma per il cliente (lo stesso testo del pulsante nelle schede) */
+const confirmTxt = (nome, uova, euro) => 'Ciao ' + String(nome || '').split(' ')[0] + '! Ho ricevuto la tua prenotazione di ' + (uova === 1 ? '1 uovo' : uova + ' uova') + ' (' + eurTxt(euro) + '). ' +
+  'Puoi pagare in contanti o con Satispay al ' + SATISPAY_PHONE.replace('+39', '').replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3') + '. Grazie! – OviAmo 🥚';
+
+async function telegram(env, db, text, buttons) {
   if (!env.TELEGRAM_TOKEN) return false;
   const c = await db.prepare("SELECT v FROM settings WHERE k = 'tg_chat'").first();
   if (!c || !c.v) return false;
+  const extra = buttons && buttons.length ? { reply_markup: { inline_keyboard: buttons } } : {};
   try {
-    let r = await tgApi(env, 'sendMessage', { chat_id: c.v, text, disable_web_page_preview: true });
+    let r = await tgApi(env, 'sendMessage', { chat_id: c.v, text, disable_web_page_preview: true, ...extra });
     const nuovo = r.parameters && r.parameters.migrate_to_chat_id;   // il gruppo è diventato "supergruppo": nuovo id
     if (!r.ok && nuovo) {
       await db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('tg_chat', ?)").bind(String(nuovo)).run();
-      r = await tgApi(env, 'sendMessage', { chat_id: nuovo, text, disable_web_page_preview: true });
+      r = await tgApi(env, 'sendMessage', { chat_id: nuovo, text, disable_web_page_preview: true, ...extra });
     }
     return r.ok;
   }
@@ -418,7 +426,9 @@ async function order_(db, env, ctx, d) {
     (perIl ? '\nPer il: ' + perIl.split('-').reverse().join('/') : '') +
     (telefono ? '\nTel: ' + telefono : '') +
     (note ? '\nNote: ' + note : '') +
-    '\nUova ancora disponibili: ' + (left - uova) + '\n' + SITE + '/report.html');
+    '\nUova ancora disponibili: ' + (left - uova),
+    [...(waNum(telefono) ? [[{ text: '💬 Conferma su WhatsApp', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(confirmTxt(nome, uova, euro)) }]] : []),
+     [{ text: '📋 Apri il report', url: SITE + '/report.html' }]]);
   return json(res);
 }
 
