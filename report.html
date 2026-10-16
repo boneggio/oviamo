@@ -364,7 +364,7 @@ const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'sh
 let calM = null, calSel = '';
 const stBadge = o => o.stato==='attesa' ? '<span class="stb att">Da confermare</span>' : o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
 const decBtns = o => o.stato==='attesa' ? `<div class="dec"><button class="yes" data-decide="ok" data-id="${esc(o.id)}">✓ Conferma</button><button class="no" data-decide="rifiutata" data-id="${esc(o.id)}">✕ Rifiuta</button></div>`
-  : o.stato==='rifiutata' ? `<div class="dec"><button data-decide="attesa" data-id="${esc(o.id)}">Rimetti in attesa</button></div>` : '';
+  : o.stato==='rifiutata' ? (o.perIl ? `<div class="dec"><button data-decide="attesa" data-id="${esc(o.id)}">Rimetti in attesa</button></div>` : `<div class="dec"><button data-decide="ok" data-id="${esc(o.id)}">Annulla il rifiuto</button></div>`) : '';
 const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Boolean).join(' + ');
 
 async function load(){
@@ -418,7 +418,7 @@ function render(){
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
 }
 
-const waBtn = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">💬 WhatsApp</a></div>` : ''; };
+const waBtn = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">${OviOrd.waLabel(o, true)}</a></div>` : ''; };
 const openDet = new Set();
 const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
 const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
@@ -525,10 +525,11 @@ $('saveSet').onclick = async () => {
 $('open').onchange = () => $('saveSet').click();
 /* ---------- messaggi WhatsApp ---------- */
 const TPL_INFO = [
-  ['normale', '🥚 Prenotazione normale', 'Quando qualcuno prenota le uova disponibili subito.'],
-  ['ricevuta', '📅 Richiesta per una data (ricevuta)', 'Quando arriva una richiesta per un giorno futuro, ancora da confermare.'],
-  ['conferma', '✓ Conferma per una data', 'Dopo che hai confermato una richiesta con data.'],
-  ['rifiuto', '✕ Rifiuto', 'Quando rifiuti una richiesta.']
+  ['normale', '🥚 Ordine subito: conferma', 'Appena arriva un ordine di uova disponibili subito.'],
+  ['rifiutoSubito', '✕ Ordine subito: rifiuto', 'Quando rifiuti un ordine subito.'],
+  ['ricevuta', '📅 Richiesta a data: ricevuta', 'Appena arriva una richiesta per un giorno futuro, ancora da confermare.'],
+  ['conferma', '✓ Richiesta a data: accettata', 'Quando accetti una richiesta a data.'],
+  ['rifiuto', '✕ Richiesta a data: rifiutata', 'Quando rifiuti una richiesta a data.']
 ];
 const TPL_EX = { nome:'Maria Rossi', uova:12, euro:5.4, perIl: (()=>{ const d=new Date(); d.setDate(d.getDate()+5); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); })() };
 const tplDef = k => (D && D.waTplDef && D.waTplDef[k]) || OviOrd.TPL[k];
@@ -696,6 +697,7 @@ document.addEventListener('click', async e => {
       await load();
       const row = document.querySelector(`#ptb [data-sel="${CSS.escape(o.id)}"]`); if (row){ const tr=row.closest('tr'); tr.classList.add('flash'); tr.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>tr.classList.remove('flash'),2500); }
       toast(d.decide==='ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : d.decide==='rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
+      if (d.decide!=='attesa') OviOrd.waPrompt({...o, stato:d.decide});
     }catch(x){ toast(x.message); b.disabled = false; }
     return; }
   if (d.pay){ const o = D.orders.find(x=>x.id===d.id); if(!o) return;
