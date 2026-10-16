@@ -72,6 +72,12 @@ th{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.c,th.c{text-align:center}
 tr.done td{opacity:.55}
+.det{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.det b{text-decoration:underline dotted;text-underline-offset:3px}
+.part{font-size:.72rem;color:var(--err);font-weight:600;white-space:nowrap;margin-top:2px}
+tr.detr td{background:var(--bg);padding:8px}
+tr.detr .oo{position:sticky;left:8px;max-width:min(560px,calc(100vw - 72px))}
+.stb.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
 .note{color:var(--muted);font-size:.82rem;font-style:italic}
 .d{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 tfoot td{font-weight:600}
@@ -266,6 +272,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 <div class="toast" id="toast"></div>
 
 <script src="grafico.js"></script>
+<script src="ordini.js"></script>
 <script src="avvisa.js"></script>
 <script>
 const SCRIPT_URL = '/api';   // motore su Cloudflare (functions/api.js)
@@ -284,7 +291,7 @@ let KEY = store.get('ovk') || '', D = null, chart = null, tab = 'pren', pf = '',
 
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:KEY,...body})}).then(r=>r.json());
-const WA = OviAvvisa($('waCard'), post);
+const WA = OviAvvisa($('waCard'), post, { canOrder: () => true, reload: () => load() });
 const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'});
 let calM = null, calSel = '';
 const stBadge = o => o.stato==='attesa' ? '<span class="stb att">Da confermare</span>' : o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
@@ -319,13 +326,13 @@ if (KEY) load().then(enter).catch(()=>{ store.set('ovk',null); KEY=''; });
 /* ---------- render ---------- */
 function render(){
   const O = D.orders.filter(o=>o.stato==='ok'), sum = (l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
-  const paid = O.filter(o=>o.pagato), notDel = O.filter(o=>!o.consegnato);
-  const costi = sum(D.costs,'euro'), inc = sum(paid,'euro');
+  const P = O.flatMap(o=>o.payments||[]);
+  const costi = sum(D.costs,'euro'), inc = sum(P,'euro');
   $('kpis').innerHTML = [
     ['Uova disponibili', D.available, 'hl'],
-    ['Uova da consegnare', sum(notDel,'uova')],
+    ['Uova da consegnare', O.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)],
     ['Da incassare', eur(sum(O,'euro')-inc)],
-    ['Incassato', eur(inc), '', `<span class="sub">${CASH} ${eur(sum(paid.filter(o=>o.metodo==='contanti'),'euro'))} · ${SP} ${eur(sum(paid.filter(o=>o.metodo==='satispay'),'euro'))}</span>`],
+    ['Incassato', eur(inc), '', `<span class="sub">${CASH} ${eur(sum(P.filter(p=>p.metodo!=='satispay'),'euro'))} · ${SP} ${eur(sum(P.filter(p=>p.metodo==='satispay'),'euro'))}</span>`],
     ['Costi', eur(costi)],
     ['Margine', `<span class="${inc-costi<0?'neg':''}">${eur(inc-costi)}</span>`]
   ].map(([l,v,c,x])=>`<div class="card kpi ${c||''}"><small>${l}</small><b>${v}</b>${x||''}</div>`).join('');
@@ -340,13 +347,16 @@ function render(){
   $('cPren').textContent = O.length; $('cCar').textContent = D.loads.length; $('cCos').textContent = D.costs.length; $('cUte').textContent = D.users.length;
   renderHens();
   renderOrders(); renderCal(); renderLoads(); renderCosts(); renderUsers();
-  const cd = { sales: paid.map(o=>({data:o.dataPag||o.data.slice(0,10), euro:o.euro, uova:o.uova})), costs:D.costs, loads:D.loads, hens:D.hens||[] };
+  const cd = { sales: D.sales||[], costs:D.costs, loads:D.loads, hens:D.hens||[] };
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
 }
 
+const openDet = new Set();
+const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
+const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
 function ordersView(){
   const y = $('py').value, s = $('ps').value.trim().toLowerCase();
-  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? !o.pagato && o.stato==='ok' : pf==='nc' ? !o.consegnato && o.stato==='ok' : pf==='att' ? o.stato==='attesa' : true)
+  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' : true)
     && (!s || (o.nome+' '+o.cognome).toLowerCase().includes(s))).sort((a,b)=>b.data.localeCompare(a.data));
 }
 function renderOrders(){
@@ -355,16 +365,16 @@ function renderOrders(){
   const V = ordersView();
   [...sel].forEach(id => { if(!D.orders.some(o=>o.id===id)) sel.delete(id); });
   const na = D.orders.filter(o=>o.stato==='attesa').length; $('cAtt').textContent = na || '';
-  $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':o.pagato&&o.consegnato?'done':''}">
+  $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
-    <td><b>${esc(o.nome)} ${esc(o.cognome)}</b>${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${decBtns(o)}</td>
+    <td><button type="button" class="det" data-det="${esc(o.id)}" aria-expanded="${openDet.has(o.id)}">${openDet.has(o.id)?'▾':'▸'} <b>${esc(o.nome)} ${esc(o.cognome)}</b></button>${o.contatto?' <span class="stb rb">Rubrica</span>':''}${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${decBtns(o)}</td>
     <td>${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td>
     <td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td>
     <td class="n">${eur(o.euro)}</td>
-    <td class="c"><span class="pay2 ${o.pagato&&!o.metodo?'old':''}" title="${o.pagato?(o.metodo==='satispay'?'Pagato con Satispay':o.metodo==='contanti'?'Pagato in contanti':'Pagato'):'Da pagare'}">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button></span></td>
-    <td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato"></td>
-  </tr>`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
+    <td class="c"><span class="pay2 ${o.pagato&&!o.metodo?'old':''}" title="${o.pagato?(o.metodo==='satispay'?'Pagato con Satispay':o.metodo==='contanti'?'Pagato in contanti':'Pagato'):'Da pagare'}">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button></span>${partPay(o)}</td>
+    <td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato">${partDlv(o)}</td>
+  </tr>${openDet.has(o.id)?`<tr class="detr"><td colspan="8">${OviOrd.row(o)}</td></tr>`:''}`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
   const s = (f)=>V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+(+o[f]||0),0);
   $('ptf').innerHTML = V.length ? `<tr><td></td><td colspan="3">${V.length} prenotazioni</td><td class="n">${s('uova')}</td><td class="n">${eur(s('euro'))}</td><td colspan="2"></td></tr>` : '';
   $('all').checked = V.length && V.every(o=>sel.has(o.id));
@@ -456,10 +466,12 @@ document.addEventListener('change', async e => {
 async function flag(ids, field, value, metodo){
   const O = D.orders.filter(o=>ids.includes(o.id)), old = O.map(o=>[o[field],o.dataPag,o.metodo]);
   O.forEach(o=>{ o[field]=value; if(field==='pagato'){ o.dataPag = value ? today() : ''; o.metodo = value ? (metodo||'') : ''; } }); render();
-  try{ const j = await post({action:'flag', ids, field, value, metodo}); if(!j.ok) throw new Error(j.error); }
+  try{ const j = await post({action:'flag', ids, field, value, metodo}); if(!j.ok) throw new Error(j.error); await load(); }
   catch(x){ O.forEach((o,i)=>{ [o[field],o.dataPag,o.metodo]=old[i]; }); render(); toast('Non salvato, riprova'); }
 }
 document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => { flag([...sel], b.dataset.bulk, true, b.dataset.m); sel.clear(); renderOrders(); });
+OviOrd.bind($('ptb'), post, local => local ? renderOrders() : load(), id => D.orders.find(o=>o.id===id));
+$('ptb').addEventListener('click', e => { const b = e.target.closest('[data-det]'); if(!b) return; const id = b.dataset.det; openDet.has(id) ? openDet.delete(id) : openDet.add(id); renderOrders(); });
 $('bulkDel').onclick = async () => {
   const ids = [...sel]; if(!confirm(`Eliminare ${ids.length} prenotazioni? Le uova tornano disponibili.`)) return;
   try{ const j = await post({action:'delOrders', ids}); if(!j.ok) throw new Error(j.error); sel.clear(); await load(); toast(`Eliminate ${j.deleted}`); }catch(x){ toast(x.message); }
