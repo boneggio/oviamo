@@ -26,6 +26,8 @@
 .oo-a{display:flex;flex-wrap:wrap;gap:6px}
 .oo button.ob{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
 .oo button.ob:hover{border-color:var(--brand-2)}
+.oo a.ob{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:99px;font:700 .82rem Inter,sans-serif;text-decoration:none}
+.oo a.ob.wa{background:#25d366;color:#0b2e17;border:1px solid #25d366}
 .oo button.ob.pr{background:var(--brand);border-color:var(--brand);color:#fff}
 @media (prefers-color-scheme:dark){.oo button.ob.pr{color:#13200c}}
 .oo .sp{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:#e8433d;color:#fff;font:800 .62rem Inter,sans-serif}
@@ -62,6 +64,8 @@
   const unit = o => o.uova ? o.euro / o.uova : 0;
   const uTxt = n => n === 1 ? '1 uovo' : n + ' uova';
   const MET = { contanti: '💶 Contanti', satispay: '<span class="sp">S</span> Satispay' };
+  const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
+  const waConf = o => { const n = waNum(o.telefono); return n && o.stato !== 'attesa' && o.stato !== 'rifiutata' ? 'https://wa.me/' + n + '?text=' + encodeURIComponent('Ciao ' + String(o.nome || '').split(' ')[0] + '! Ho ricevuto la tua prenotazione di ' + uTxt(o.uova) + ' (' + eur(o.euro) + '). Puoi pagare in contanti o con Satispay al 393 160 9967. Grazie! – OviAmo 🥚') : ''; };
   const forms = new Map();   // id → { mode, n, e, m, eTouched }
 
   function sumTxt(o, f) {
@@ -116,7 +120,8 @@
     <div class="oo-b"><span class="k">🥚 Uova</span><span class="v">consegnate <b>${c}</b> di ${o.uova}</span><span class="oo-bar"><i style="width:${o.uova ? c / o.uova * 100 : 100}%"></i></span>${L ? `<span class="r">da consegnare: ${uTxt(L)}</span>` : '<span class="ok">✓ tutte consegnate</span>'}</div>
     <div class="oo-b"><span class="k">💶 Soldi</span><span class="v">pagati <b>${eur(p)}</b> di ${eur(o.euro)}</span><span class="oo-bar"><i style="width:${o.euro ? Math.min(100, p / o.euro * 100) : 100}%"></i></span>${R > 0.005 ? `<span class="r">da pagare: ${eur(R)}</span>` : '<span class="ok">✓ tutto pagato</span>'}</div>
   </div>
-  ${f ? formHtml(o, f) : !done(o) ? `<div class="oo-a">
+  ${f ? formHtml(o, f) : !done(o) || waConf(o) ? `<div class="oo-a">
+    ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
     ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button>` : ''}
