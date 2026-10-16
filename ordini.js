@@ -40,6 +40,8 @@
 .oo-m{display:flex;gap:6px;flex-wrap:wrap}
 .oo-m button{padding:7px 11px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
 .oo-m button.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 16%,var(--card));color:var(--brand)}
+.oo-dec{display:grid;gap:6px;padding:9px 10px;border-radius:12px;background:color-mix(in srgb,var(--yolk) 22%,var(--card));font-size:.86rem;font-weight:600}
+.oo-dec.rej{background:var(--bg);color:var(--muted)}
 .oo-sum{font-size:.86rem;padding:8px 10px;border-radius:10px;background:var(--card);border:1px dashed var(--line)}
 .oo-del{color:var(--err)!important;font-size:.8rem!important}
 .oo-lk{border:0;background:none;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.84rem}
@@ -130,6 +132,8 @@
     <div class="oo-b"><span class="k">🥚 Uova</span><span class="v">consegnate <b>${c}</b> di ${o.uova}</span><span class="oo-bar"><i style="width:${o.uova ? c / o.uova * 100 : 100}%"></i></span>${L ? `<span class="r">da consegnare: ${uTxt(L)}</span>` : '<span class="ok">✓ tutte consegnate</span>'}</div>
     <div class="oo-b"><span class="k">💶 Soldi</span><span class="v">pagati <b>${eur(p)}</b> di ${eur(o.euro)}</span><span class="oo-bar"><i style="width:${o.euro ? Math.min(100, p / o.euro * 100) : 100}%"></i></span>${R > 0.005 ? `<span class="r">da pagare: ${eur(R)}</span>` : '<span class="ok">✓ tutto pagato</span>'}</div>
   </div>
+  ${o.stato === 'attesa' ? `<div class="oo-dec"><span>📅 Richiesta da confermare${o.perIl ? ' per ' + giorno(o.perIl) : ''}</span><div class="oo-a"><button type="button" class="ob pr" data-oa="dec" data-v="ok">✓ Conferma</button><button type="button" class="ob" data-oa="dec" data-v="rifiutata">✕ Rifiuta</button></div></div>`
+    : o.stato === 'rifiutata' ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>` : ''}
   ${f ? formHtml(o, f) : !done(o) || waConf(o) ? `<div class="oo-a">
     ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
@@ -166,6 +170,19 @@
       if (a === 'fneq' && f) { f.n = eqOf(o, f); redraw(id); return; }
       if (a === 'fm' && f) { f.m = b.dataset.m; f.answered = true; if (f.m) { if (!f.e) { f.eTouched = false; autoE(o, f); } } else f.e = 0; redraw(id); return; }
       b.disabled = true;
+      if (a === 'dec') {
+        const v = b.dataset.v;
+        (async () => {
+          try {
+            let j = await post({ action: 'decide', id, value: v });
+            if (!j.ok && j.short && confirm(`Adesso ci sono solo ${j.available} uova disponibili e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
+            if (!j.ok) { if (!j.short) toast(j.error || 'Non salvato'); b.disabled = false; return; }
+            toast(v === 'ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : v === 'rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
+            await reload();
+          } catch (x) { toast('Non salvato, riprova'); b.disabled = false; }
+        })();
+        return;
+      }
       if (a === 'all') run({ action: 'move', id, uova: left(o), euro: rest(o), metodo: b.dataset.m }, `${o.nome}: consegnate e pagate`);
       else if (a === 'del') { if (confirm(`Eliminare la prenotazione di ${o.nome} ${o.cognome} (${uTxt(o.uova)})? Va nel cestino: le uova tornano disponibili e si può ripristinare dal report per 30 giorni.`)) run({ action: 'delOrders', ids: [id] }, 'Spostata nel cestino'); else b.disabled = false; }
       else if (a === 'pdel') { if (confirm('Annullare questo movimento?')) run({ action: 'payDel', pid: b.dataset.pid }, 'Movimento annullato'); else b.disabled = false; }
