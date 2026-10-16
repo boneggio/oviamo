@@ -183,14 +183,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case 'move': if (!canCost) break; return await move_(db, d, u);
       case 'payDel': if (!canCost) break; return await payDel_(db, d);
       case 'contactOrder': if (!canCost) break; return await contactOrder_(db, d);
-      case 'delOrders': {   // gli utenti intermedi possono cestinare solo le registrazioni della rubrica
-        if (master) break;
-        if (!canCost) break;
-        const ids = (d.ids || []).map(String);
-        const ok = ids.length && (await all(db, `SELECT contatto FROM orders WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids)).every(o => o.contatto);
-        if (!ok) break;
-        return await delOrders_(db, d);
-      }
+      case 'delOrders': if (!canCost) break; return await delOrders_(db, d);   // va nel cestino: si ripristina dal report
       case 'contactSave': return await contactSave_(db, d);
       case 'contactDel': await db.prepare('DELETE FROM contacts WHERE id = ?').bind(String(d.id)).run(); return json({ ok: true, contacts: await contacts_(db) });
       case 'waMsg': {
