@@ -208,7 +208,7 @@ async function load(){
     if(!TK) throw new Error('Questo link non è completo. Chiedi il tuo link personale a chi gestisce OviAmo.');
     const j = await fetch(SCRIPT_URL+'?action=area&t='+encodeURIComponent(TK)).then(r=>r.json());
     if(!j.ok) throw new Error(j.error||'Errore');
-    D = j; $('err').hidden=true; $('refresh').hidden=false; render();
+    window.OviTpl = j.waTpl || null; D = j; $('err').hidden=true; $('refresh').hidden=false; render();
   }catch(e){ $('err').hidden=false; $('err').textContent=e.message; $('badge').hidden=true; }
 }
 
