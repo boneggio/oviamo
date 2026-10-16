@@ -28,7 +28,9 @@ const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const dIt = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
 // uova impegnate = solo le prenotazioni confermate (le richieste "in attesa" o "rifiutate" non contano)
-const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok')";
+// (le prenotazioni nel cestino non contano)
+const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '')";
+const TRASH_DAYS = 30;   // dopo quanti giorni il cestino si svuota da solo
 const LOADED = '(SELECT COALESCE(SUM(uova),0) FROM loads)';
 const REMIND_DAYS = 3;   // promemoria Telegram per le richieste da confermare
 const WA_MSG = 'Ciao, se vuoi ci sono {uova} uova disponibili';   // testo predefinito "Avvisa su WhatsApp"
@@ -38,21 +40,21 @@ const all = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).re
 
 const orders_ = async db => {
   const pays = {};
-  (await all(db, 'SELECT id, order_id, data, euro, metodo, utente FROM payments ORDER BY data, ins')).forEach(p => (pays[p.order_id] = pays[p.order_id] || []).push({ id: p.id, data: p.data, euro: p.euro, metodo: p.metodo || '', utente: p.utente || '' }));
+  (await all(db, 'SELECT id, order_id, data, euro, uova, metodo, utente FROM payments ORDER BY data, ins')).forEach(p => (pays[p.order_id] = pays[p.order_id] || []).push({ id: p.id, data: p.data, euro: p.euro, uova: p.uova || 0, metodo: p.metodo || '', utente: p.utente || '' }));
   return (await all(db, 'SELECT * FROM orders ORDER BY data')).map(r => {
     const payments = pays[r.id] || [];
     return {
       id: r.id, data: r.data, nome: r.nome, cognome: r.cognome, telefono: r.telefono || '',
       q1: r.q1, q6: r.q6, uova: r.uova, euro: r.euro, note: r.note || '',
       pagato: !!r.pagato, consegnato: !!r.consegnato, dataPag: r.data_pag || '', metodo: r.metodo || '', perIl: r.per_il || '',
-      stato: r.stato || 'ok', contatto: r.contatto || '',
+      stato: r.stato || 'ok', contatto: r.contatto || '', eliminato: r.eliminato || '',
       payments, paid: Math.round(payments.reduce((t, p) => t + p.euro, 0) * 100) / 100,
-      consegnate: Math.min(r.uova, r.consegnate || 0)
+      consegnate: Math.min(r.uova, payments.reduce((t, p) => t + p.uova, 0))
     };
   });
 };
 /** vendite per il grafico: un elemento per ogni pagamento (uova in proporzione all'importo) */
-const sales_ = ord => ord.flatMap(o => o.payments.map(p => ({ data: p.data, euro: p.euro, uova: o.euro ? Math.round(o.uova * p.euro / o.euro * 10) / 10 : 0 })));
+const sales_ = ord => ord.filter(o => !o.eliminato).flatMap(o => o.payments.filter(p => p.euro > 0).map(p => ({ data: p.data, euro: p.euro, uova: o.euro ? Math.round(o.uova * p.euro / o.euro * 10) / 10 : 0 })));
 const loads_ = db => all(db, 'SELECT id, data, uova, utente, note, ins FROM loads ORDER BY data, ins');
 const costs_ = db => all(db, 'SELECT id, data, descr, euro, utente, ins, qta, unita FROM costs ORDER BY data, ins');
 const hens_ = db => all(db, 'SELECT id, data, tot, prod, utente, note, ins FROM hens ORDER BY data, ins');
@@ -103,7 +105,8 @@ async function remind_(env, db) {
   const now = Date.now(), last = await db.prepare("SELECT v FROM settings WHERE k = 'last_remind'").first();
   if (last && now - (+last.v || 0) < 3600e3) return;
   await db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('last_remind', ?)").bind(String(now)).run();
-  const L = await all(db, "SELECT id, nome, cognome, telefono, uova, per_il FROM orders WHERE stato = 'attesa' AND COALESCE(ricordato,0) = 0 AND per_il <> '' AND per_il <= ? ORDER BY per_il", addDays(today_(), REMIND_DAYS));
+  await purge_(db, "eliminato <> '' AND eliminato < ?", addDays(today_(), -TRASH_DAYS));
+  const L = await all(db, "SELECT id, nome, cognome, telefono, uova, per_il FROM orders WHERE stato = 'attesa' AND COALESCE(eliminato,'') = '' AND COALESCE(ricordato,0) = 0 AND per_il <> '' AND per_il <= ? ORDER BY per_il", addDays(today_(), REMIND_DAYS));
   if (!L.length) return;
   const ok = await telegram(env, db, '⏰ OviAmo – richieste da confermare\n' +
     L.map(o => '• ' + dIt(o.per_il) + ': ' + o.nome + ' ' + o.cognome + ', ' + o.uova + ' uova' + (o.telefono ? ' (' + o.telefono + ')' : '')).join('\n') +
@@ -145,7 +148,7 @@ export async function onRequestGet({ request, env, waitUntil }) {
     const loads = await loads_(db);
     if (u.ruolo === 'intermedio') {
       out.loads = loads; out.costs = await costs_(db); out.hens = await hens_(db);
-      const ord = await orders_(db);
+      const ord = (await orders_(db)).filter(o => !o.eliminato);
       out.orders = ord;
       out.sales = sales_(ord);
     } else {
@@ -177,10 +180,17 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case 'hens': if (!canCost) break; return await addHens_(db, d, u);
       case 'delHens': if (!canCost) break; return await delEntry_(db, 'hens', d.id, u, master);
       case 'flag': if (!canCost) break; return await flag_(db, d, u);
-      case 'pay': if (!canCost) break; return await pay_(db, d, u);
+      case 'move': if (!canCost) break; return await move_(db, d, u);
       case 'payDel': if (!canCost) break; return await payDel_(db, d);
-      case 'deliver': if (!canCost) break; return await deliver_(db, d);
       case 'contactOrder': if (!canCost) break; return await contactOrder_(db, d);
+      case 'delOrders': {   // gli utenti intermedi possono cestinare solo le registrazioni della rubrica
+        if (master) break;
+        if (!canCost) break;
+        const ids = (d.ids || []).map(String);
+        const ok = ids.length && (await all(db, `SELECT contatto FROM orders WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids)).every(o => o.contatto);
+        if (!ok) break;
+        return await delOrders_(db, d);
+      }
       case 'contactSave': return await contactSave_(db, d);
       case 'contactDel': await db.prepare('DELETE FROM contacts WHERE id = ?').bind(String(d.id)).run(); return json({ ok: true, contacts: await contacts_(db) });
       case 'waMsg': {
@@ -192,6 +202,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
     if (!master) return json({ ok: false, error: 'Operazione non consentita' });
     switch (d.action) {
       case 'delOrders': return await delOrders_(db, d);
+      case 'restore': return await restore_(db, d);
+      case 'purge': {
+        const ids = (d.ids || []).map(String);
+        return json({ ok: true, purged: ids.length ? await purge_(db, `eliminato <> '' AND id IN (${ids.map(() => '?').join(',')})`, ...ids) : 0 });
+      }
       case 'settings': return await saveSettings_(db, d);
       case 'userSave': return await userSave_(db, d);
       case 'decide': return await decide_(db, d);
@@ -339,69 +354,66 @@ async function delEntry_(db, table, id, u, master) {
   return json({ ok: r.meta.changes > 0, available: await available_(db) });
 }
 
-/** Ricalcola pagato / consegnato / metodo / data_pag di un ordine a partire da pagamenti e uova consegnate */
+/** Ricalcola pagato / consegnato / metodo / data_pag / consegnate di un ordine dai suoi movimenti (tabella payments) */
 async function sync_(db, id) {
-  const o = await db.prepare('SELECT euro, uova, consegnate FROM orders WHERE id = ?').bind(id).first();
+  const o = await db.prepare('SELECT euro, uova FROM orders WHERE id = ?').bind(id).first();
   if (!o) return;
-  const P = await all(db, 'SELECT data, euro, metodo FROM payments WHERE order_id = ? ORDER BY data, ins', id);
-  const paid = P.reduce((t, p) => t + p.euro, 0), met = [...new Set(P.map(p => p.metodo || ''))];
-  await db.prepare('UPDATE orders SET pagato = ?, data_pag = ?, metodo = ?, consegnato = ? WHERE id = ?')
-    .bind(P.length && paid >= o.euro - 0.005 ? 1 : 0, P.length ? P[P.length - 1].data : '', met.length === 1 ? met[0] : met.length ? 'misto' : '',
-      (o.consegnate || 0) >= o.uova ? 1 : 0, id).run();
+  const P = await all(db, 'SELECT data, euro, uova, metodo FROM payments WHERE order_id = ? ORDER BY data, ins', id);
+  const M = P.filter(p => p.euro > 0), paid = M.reduce((t, p) => t + p.euro, 0), dl = P.reduce((t, p) => t + (p.uova || 0), 0);
+  const met = [...new Set(M.map(p => p.metodo || ''))];
+  await db.prepare('UPDATE orders SET pagato = ?, data_pag = ?, metodo = ?, consegnate = ?, consegnato = ? WHERE id = ?')
+    .bind(paid >= o.euro - 0.005 ? 1 : 0, M.length ? M[M.length - 1].data : '', met.length === 1 ? met[0] : met.length ? 'misto' : '',
+      Math.min(dl, o.uova), dl >= o.uova ? 1 : 0, id).run();
 }
+/** Quanto manca da pagare e quante uova da consegnare */
 const remaining_ = async (db, id) => {
-  const r = await db.prepare('SELECT euro - COALESCE((SELECT SUM(euro) FROM payments WHERE order_id = orders.id), 0) AS r FROM orders WHERE id = ?').bind(id).first();
-  return r ? Math.round(r.r * 100) / 100 : null;
+  const r = await db.prepare(`SELECT euro - COALESCE((SELECT SUM(euro) FROM payments WHERE order_id = orders.id), 0) AS e,
+    uova - COALESCE((SELECT SUM(uova) FROM payments WHERE order_id = orders.id), 0) AS u FROM orders WHERE id = ?`).bind(id).first();
+  return r ? { e: Math.max(0, Math.round(r.e * 100) / 100), u: Math.max(0, r.u) } : null;
 };
+const addMove_ = (db, id, data, uova, euro, metodo, u) => db.prepare('INSERT INTO payments (id, order_id, data, euro, uova, metodo, utente, ins) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+  .bind(newId('m'), id, data, euro, uova, euro > 0 ? (metodo === 'satispay' ? 'satispay' : 'contanti') : '', u.nome, now_()).run();
 
-/** Segna tutto pagato (= paga il resto) / tutto da pagare (cancella i pagamenti), tutto consegnato / niente consegnato */
+/** Dal report: tutto pagato / niente pagato, tutto consegnato / niente consegnato */
 async function flag_(db, d, u) {
   const field = d.field === 'pagato' ? 'pagato' : d.field === 'consegnato' ? 'consegnato' : '';
   if (!field) return json({ ok: false, error: 'Campo non valido' });
   const ids = (d.ids || []).map(String), on = d.value === true;
   let n = 0;
   for (const id of ids) {
-    if (field === 'pagato') {
-      if (on) {
-        const rest = await remaining_(db, id);
-        if (rest == null) continue;
-        if (rest > 0.005) await db.prepare('INSERT INTO payments (id, order_id, data, euro, metodo, utente, ins) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .bind(newId('m'), id, today_(), rest, d.metodo === 'satispay' ? 'satispay' : 'contanti', u.nome, now_()).run();
-      } else await db.prepare('DELETE FROM payments WHERE order_id = ?').bind(id).run();
+    const rest = await remaining_(db, id);
+    if (!rest) continue;
+    if (on) {
+      if (field === 'pagato' && rest.e > 0.005) await addMove_(db, id, today_(), 0, rest.e, d.metodo, u);
+      if (field === 'consegnato' && rest.u > 0) await addMove_(db, id, today_(), rest.u, 0, '', u);
     } else {
-      const r = await db.prepare(`UPDATE orders SET consegnate = ${on ? 'uova' : '0'} WHERE id = ?`).bind(id).run();
-      if (!r.meta.changes) continue;
+      await db.prepare(field === 'pagato' ? "UPDATE payments SET euro = 0, metodo = '' WHERE order_id = ?" : 'UPDATE payments SET uova = 0 WHERE order_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM payments WHERE order_id = ? AND euro <= 0 AND COALESCE(uova,0) <= 0').bind(id).run();
     }
     await sync_(db, id); n++;
   }
   return json({ ok: true, updated: n });
 }
 
-/** Pagamento (anche parziale) di un ordine: d.id, d.euro (vuoto = tutto il resto), d.metodo, d.data */
-async function pay_(db, d, u) {
+/** Un movimento: uova consegnate adesso (d.uova) e/o soldi ricevuti adesso (d.euro, d.metodo). Anche in anticipo o in parte. */
+async function move_(db, d, u) {
   const id = String(d.id || ''), rest = await remaining_(db, id);
-  if (rest == null) return json({ ok: false, error: 'Prenotazione non trovata' });
-  let e = d.euro === '' || d.euro == null ? rest : Math.round((parseFloat(String(d.euro).replace(',', '.')) || 0) * 100) / 100;
-  if (!(e > 0)) return json({ ok: false, error: 'Importo non valido' });
-  if (e > rest + 0.005) return json({ ok: false, error: rest > 0 ? 'Mancano solo ' + rest.toFixed(2).replace('.', ',') + ' €' : 'Questa prenotazione è già pagata' });
-  await db.prepare('INSERT INTO payments (id, order_id, data, euro, metodo, utente, ins) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(newId('m'), id, isDate(d.data) ? d.data : today_(), e, d.metodo === 'satispay' ? 'satispay' : 'contanti', u.nome, now_()).run();
+  if (!rest) return json({ ok: false, error: 'Prenotazione non trovata' });
+  const n = Math.max(0, parseInt(d.uova, 10) || 0);
+  const e = Math.round((parseFloat(String(d.euro == null ? '' : d.euro).replace(',', '.')) || 0) * 100) / 100;
+  if (!n && !(e > 0)) return json({ ok: false, error: 'Scrivi le uova consegnate o l\'importo pagato' });
+  if (n > rest.u) return json({ ok: false, error: rest.u ? 'Restano da consegnare solo ' + rest.u + ' uova' : 'Le uova sono già tutte consegnate' });
+  if (e < 0 || e > rest.e + 0.005) return json({ ok: false, error: rest.e > 0 ? 'Restano da pagare solo ' + rest.e.toFixed(2).replace('.', ',') + ' €' : 'È già tutto pagato' });
+  if (e > 0 && d.metodo !== 'contanti' && d.metodo !== 'satispay') return json({ ok: false, error: 'Scegli Contanti o Satispay' });
+  await addMove_(db, id, isDate(d.data) ? d.data : today_(), n, e, d.metodo, u);
   await sync_(db, id);
   return json({ ok: true });
 }
 async function payDel_(db, d) {
   const p = await db.prepare('SELECT order_id FROM payments WHERE id = ?').bind(String(d.pid || '')).first();
-  if (!p) return json({ ok: false, error: 'Pagamento non trovato' });
+  if (!p) return json({ ok: false, error: 'Movimento non trovato' });
   await db.prepare('DELETE FROM payments WHERE id = ?').bind(String(d.pid)).run();
   await sync_(db, p.order_id);
-  return json({ ok: true });
-}
-/** Uova consegnate (anche in parte): d.id, d.n = quante ne sono state consegnate in tutto */
-async function deliver_(db, d) {
-  const id = String(d.id || ''), n = Math.max(0, parseInt(d.n, 10) || 0);
-  const r = await db.prepare('UPDATE orders SET consegnate = MIN(uova, ?) WHERE id = ?').bind(n, id).run();
-  if (!r.meta.changes) return json({ ok: false, error: 'Prenotazione non trovata' });
-  await sync_(db, id);
   return json({ ok: true });
 }
 
@@ -422,13 +434,27 @@ async function contactOrder_(db, d) {
   return json({ ok: true, available: await available_(db) });
 }
 
+/** "Elimina" sposta nel cestino: le uova tornano disponibili, ma si può ripristinare */
 async function delOrders_(db, d) {
   const ids = (d.ids || []).map(String);
   if (!ids.length) return json({ ok: true, deleted: 0 });
-  const marks = ids.map(() => '?').join(',');
-  await db.prepare(`DELETE FROM payments WHERE order_id IN (${marks})`).bind(...ids).run();
-  const r = await db.prepare(`DELETE FROM orders WHERE id IN (${marks})`).bind(...ids).run();
+  const r = await db.prepare(`UPDATE orders SET eliminato = ? WHERE COALESCE(eliminato,'') = '' AND id IN (${ids.map(() => '?').join(',')})`).bind(now_(), ...ids).run();
   return json({ ok: true, deleted: r.meta.changes });
+}
+async function restore_(db, d) {
+  const ids = (d.ids || []).map(String);
+  if (!ids.length) return json({ ok: true, restored: 0 });
+  const r = await db.prepare(`UPDATE orders SET eliminato = '' WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).run();
+  return json({ ok: true, restored: r.meta.changes, available: await available_(db) });
+}
+/** Cancella per sempre (solo dal cestino) */
+async function purge_(db, where, ...b) {
+  const L = await all(db, `SELECT id FROM orders WHERE ${where}`, ...b);
+  if (!L.length) return 0;
+  const ids = L.map(o => o.id), marks = ids.map(() => '?').join(',');
+  await db.prepare(`DELETE FROM payments WHERE order_id IN (${marks})`).bind(...ids).run();
+  await db.prepare(`DELETE FROM orders WHERE id IN (${marks})`).bind(...ids).run();
+  return ids.length;
 }
 
 async function saveSettings_(db, d) {
