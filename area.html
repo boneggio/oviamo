@@ -106,6 +106,11 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     <div class="seg" id="of"><button data-f="np" class="on">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="">Tutte</button></div>
     <div class="list" id="ords"></div>
     <button class="more" id="omore" hidden>Mostra tutte</button>
+    <details class="hist sub" id="odoneBox">
+      <summary><h2>📋 Storico (pagate e consegnate)</h2><span class="n" id="odCount"></span></summary>
+      <div class="list" id="odone"></div>
+      <button class="more" id="odmore" hidden>Mostra tutte</button>
+    </details>
   </section>
 
   <section class="card" id="loadCard" hidden>
@@ -191,7 +196,7 @@ const dIt = s => { const p=String(s).slice(0,10).split('-'); return p.length===3
 const pad = n => String(n).padStart(2,'0');
 const today = () => { const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
 const TK = new URLSearchParams(location.search).get('k') || '';
-let D = null, chart = null, allL = false, allC = false, allO = false, of = 'np';
+let D = null, chart = null, allL = false, allC = false, allO = false, allOD = false, of = 'np';
 
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TK,...body})}).then(r=>r.json());
@@ -279,13 +284,7 @@ document.addEventListener('click', async e => {
 
 // ----- prenotazioni (solo intermedio) -----
 const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Boolean).join(' + ');
-function renderOrders(){
-  const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
-  const OK = O.filter(o=>(o.stato||'ok')==='ok'), np = OK.filter(o=>!o.pagato), nc = OK.filter(o=>!o.consegnato);
-  $('osum').innerHTML = `<span>Da incassare: <b>${eur(sum(np,'euro'))}</b></span><span>Uova da consegnare: <b>${sum(nc,'uova')}</b></span>`;
-  const V = O.filter(o => of==='np' ? !o.pagato : of==='nc' ? !o.consegnato : true).sort((a,b)=>b.data.localeCompare(a.data));
-  const vis = allO ? V : V.slice(0,15);
-  $('ords').innerHTML = vis.map(o=>`<div class="ord ${o.pagato&&o.consegnato?'done':''}">
+const ordRow = o=>`<div class="ord ${o.pagato&&o.consegnato?'done':''}">
     <div><h3>${esc(o.nome)} ${esc(o.cognome)}${o.stato==='attesa'?' <span style="font:700 .7rem Inter,sans-serif;padding:1px 8px;border-radius:99px;background:color-mix(in srgb,var(--yolk) 45%,var(--card));color:#6b4a00;vertical-align:2px">Da confermare</span>':''}</h3><div class="w">${o.perIl?`<b style="color:var(--brand)">per ${new Date(o.perIl+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'})}</b> · `:''}${dIt(o.data)} · ${o.uova} uova (${uovaTxt(o)})${o.telefono?` · <a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</div></div>
     <div class="e">${eur(o.euro)}</div>
     ${o.note?`<div class="nt">“${esc(o.note)}”</div>`:''}
@@ -294,13 +293,26 @@ function renderOrders(){
       <button class="chip pm ${o.pagato&&o.metodo==='satispay'?'on':''}" data-oid="${esc(o.id)}" data-f="pagato" data-m="satispay" aria-pressed="${o.pagato&&o.metodo==='satispay'}"><span class="ic sp">S</span>Satispay</button>
       ${o.pagato&&!o.metodo?'<span class="chip on" style="cursor:default"><span class="dot">✓</span>Pagato</span>':''}
       <button class="chip ${o.consegnato?'on':''}" data-oid="${esc(o.id)}" data-f="consegnato" aria-pressed="${o.consegnato}"><span class="dot">${o.consegnato?'✓':''}</span>Consegnato</button>
-    </div></div>`).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
+    </div></div>`;
+function renderOrders(){
+  const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
+  const OK = O.filter(o=>(o.stato||'ok')==='ok'), np = OK.filter(o=>!o.pagato), nc = OK.filter(o=>!o.consegnato);
+  $('osum').innerHTML = `<span>Da incassare: <b>${eur(sum(np,'euro'))}</b></span><span>Uova da consegnare: <b>${sum(nc,'uova')}</b></span>`;
+  const done = o => o.pagato && o.consegnato;
+  const V = O.filter(o => !done(o) && (of==='np' ? !o.pagato : of==='nc' ? !o.consegnato : true)).sort((a,b)=>b.data.localeCompare(a.data));
+  const vis = allO ? V : V.slice(0,15);
+  $('ords').innerHTML = vis.map(ordRow).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione da sistemare in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
+  const F = O.filter(done).sort((a,b)=>b.data.localeCompare(a.data));
+  $('odone').innerHTML = (allOD ? F : F.slice(0,15)).map(ordRow).join('') || '<p class="empty">Ancora nessuna prenotazione completata.</p>';
+  $('odmore').hidden = allOD || F.length <= 15;
+  $('odCount').textContent = F.length === 1 ? '1 prenotazione' : F.length + ' prenotazioni';
   $('omore').hidden = allO || V.length <= 15;
 }
 $('of').onclick = e => { const b=e.target.closest('button'); if(!b) return; of=b.dataset.f;
   document.querySelectorAll('#of button').forEach(x=>x.classList.toggle('on',x===b)); renderOrders(); };
 $('omore').onclick = () => { allO=true; renderOrders(); };
-$('ords').onclick = async e => {
+$('odmore').onclick = () => { allOD=true; renderOrders(); };
+$('ords').onclick = $('odone').onclick = async e => {
   const b = e.target.closest('button.chip'); if(!b) return;
   const o = D.orders.find(x=>x.id===b.dataset.oid); if(!o) return;
   const f = b.dataset.f, m = b.dataset.m || '';
