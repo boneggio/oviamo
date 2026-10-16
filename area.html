@@ -45,6 +45,13 @@ input:focus{outline:2px solid var(--yolk);outline-offset:1px;border-color:transp
 @media (prefers-color-scheme:dark){.btn{color:#13200c}}
 .btn:disabled{opacity:.55}
 .list{display:grid;gap:6px;margin-top:6px}
+.hist summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px}
+.hist summary::-webkit-details-marker{display:none}
+.hist summary h2{margin:0;flex:1}
+.hist summary::after{content:'▾';color:var(--muted);font-size:1.1rem;transition:transform .2s}
+.hist[open] summary::after{transform:rotate(180deg)}
+.hist .n{color:var(--muted);font-size:.85rem}
+.hist[open] summary{margin-bottom:8px}
 .it{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--bg);font-size:.92rem}
 .it .d{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .it .w{color:var(--muted);font-size:.8rem}
@@ -104,9 +111,6 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       </div>
       <button class="btn" id="lgo">Aggiungi le uova</button>
     </form>
-    <h2 style="margin-top:18px" id="lTitle">I tuoi ultimi carichi</h2>
-    <div class="list" id="loads"></div>
-    <button class="more" id="lmore" hidden>Mostra tutti</button>
   </section>
 
   <section class="card" id="waCard" hidden></section>
@@ -138,6 +142,12 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     <div class="list" id="ords"></div>
     <button class="more" id="omore" hidden>Mostra tutte</button>
   </section>
+
+  <details class="card hist" id="histCard" hidden>
+    <summary><h2 id="lTitle">I tuoi carichi</h2><span class="n" id="lCount"></span></summary>
+    <div class="list" id="loads"></div>
+    <button class="more" id="lmore" hidden>Mostra tutti</button>
+  </details>
 
   <section class="card" id="costCard" hidden>
     <h2>🌾 Costi (mangime e altro)</h2>
@@ -197,11 +207,13 @@ function render(){
   $('avail').textContent = D.available; $('availBox').hidden = false;
   WA.update(D);
   $('loadCard').hidden = false;
-  $('lTitle').textContent = inter ? 'Ultimi carichi (di tutti)' : 'I tuoi ultimi carichi';
+  $('lTitle').textContent = inter ? '📋 Storico carichi (di tutti)' : '📋 I tuoi carichi';
+  $('histCard').hidden = false;
   const L = [...D.loads].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins));
   const lv = allL ? L : L.slice(0,8);
   $('loads').innerHTML = lv.map(l=>`<div class="it"><span class="d">${dIt(l.data)}</span><span>${inter?esc(l.utente):''}${l.note?` <span class="w">${esc(l.note)}</span>`:''}</span><b>${l.uova} uova</b>${l.utente===D.nome?`<button class="x" data-del="load" data-id="${esc(l.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun carico.</p>';
   $('lmore').hidden = allL || L.length <= 8;
+  $('lCount').textContent = L.length === 1 ? '1 carico' : L.length + ' carichi';
   if (!inter) return;
   $('costCard').hidden = false; $('chartCard').hidden = false; $('ordCard').hidden = false; $('henCard').hidden = false;
   renderOrders(); renderHens();
