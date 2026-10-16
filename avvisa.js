@@ -24,10 +24,10 @@
 @media (prefers-color-scheme:dark){.wa .of button{color:#13200c}}
 @media (max-width:520px){.wa .of{grid-template-columns:1fr 1fr}.wa .of button{grid-column:1/-1}}
 .wa .tot{font-size:.86rem;display:flex;flex-wrap:wrap;gap:6px}.wa .tot span{background:var(--bg);border-radius:99px;padding:3px 10px}
-.wa details summary{cursor:pointer;font-weight:600;font-size:.9rem;list-style:none;display:flex;justify-content:space-between}
-.wa details summary::-webkit-details-marker{display:none}
-.wa details summary::after{content:'▾';color:var(--muted)}.wa details[open] summary::after{transform:rotate(180deg)}
-.wa details .hl{display:grid;gap:8px;margin-top:8px}
+.wa details[data-wah]>summary{cursor:pointer;font-weight:600;font-size:.9rem;list-style:none;display:flex;justify-content:space-between}
+.wa details[data-wah]>summary::-webkit-details-marker{display:none}
+.wa details[data-wah]>summary::after{content:'▾';color:var(--muted)}.wa details[data-wah][open]>summary::after{transform:rotate(180deg)}
+.wa details[data-wah] .hl{display:grid;gap:8px;margin-top:8px}
 .wa .p b{display:block}.wa .p small{color:var(--muted)}
 .wa .go{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:0;border-radius:10px;background:#25d366;color:#0b2e17;font:700 .9rem Inter,sans-serif;cursor:pointer;white-space:nowrap}
 .wa .go.sent{background:color-mix(in srgb,#25d366 35%,var(--card))}
@@ -96,7 +96,7 @@
           </form>
           ${L.length ? `<div class="tot"><span>${L.reduce((t, o) => t + o.uova, 0)} uova</span><span>Pagato ${OviOrd.eur(L.reduce((t, o) => t + OviOrd.paid(o), 0))} di ${OviOrd.eur(L.reduce((t, o) => t + o.euro, 0))}</span>${dl ? `<span>da consegnare ${dl} uova</span>` : ''}</div>` : ''}
           <details data-wah="${esc(c.id)}" ${openH.has(c.id) ? 'open' : ''}><summary>📋 Storico di ${esc(c.nome.split(' ')[0])} (${L.length})</summary>
-            <div class="hl">${L.map(o => OviOrd.row(o)).join('') || '<p class="empty">Ancora niente.</p>'}</div></details>
+            <div class="hl">${L.map(o => OviOrd.row(o, { del: true })).join('') || '<p class="empty">Ancora niente.</p>'}</div></details>
         </div>` : ''}</div>`;
       }).join('')
         || '<p class="empty">Nessuna persona in elenco: aggiungila qui sotto.</p>';
