@@ -68,15 +68,21 @@
   const MET = { contanti: '💶 Contanti', satispay: '<span class="sp">S</span> Satispay' };
   const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
   const giorno = d => new Date(d + 'T12:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-  /** Messaggio WhatsApp adatto alla prenotazione: ricevuta, conferma (anche per una data) o rifiuto */
-  const waText = o => {
-    const n = String(o.nome || '').split(' ')[0], nm = n.charAt(0).toUpperCase() + n.slice(1), q = uTxt(o.uova), e = eur(o.euro), g = o.perIl ? giorno(o.perIl) : '';
-    const pay = ' Puoi pagare in contanti o con Satispay al 393 160 9967.';
-    if (o.stato === 'attesa') return `Ciao ${nm}! Ho ricevuto la tua richiesta di ${q} per ${g} (${e}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚`;
-    if (o.stato === 'rifiutata') return `Ciao ${nm}, mi dispiace: per ${g || 'ora'} non riusciamo ad avere le ${q} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚`;
-    if (g) return `Ciao ${nm}! Ti confermo le tue ${q} per ${g} (${e}).${pay} Grazie! – OviAmo 🥚`;
-    return `Ciao ${nm}! Ho ricevuto la tua prenotazione di ${q} (${e}).${pay} Grazie! – OviAmo 🥚`;
+  /** Testi predefiniti (gli stessi del server); quelli modificati nella scheda 💬 Messaggi arrivano in window.OviTpl */
+  const TPL = {
+    ricevuta: 'Ciao {nome}! Ho ricevuto la tua richiesta di {uova} per {giorno} ({euro}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚',
+    conferma: 'Ciao {nome}! Ti confermo le tue {uova} per {giorno} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
+    normale: 'Ciao {nome}! Ho ricevuto la tua prenotazione di {uova} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
+    rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚'
   };
+  const fill = (t, o) => {
+    const n = String(o.nome || '').trim().split(' ')[0];
+    const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uTxt(o.uova), euro: eur(o.euro), giorno: o.perIl ? giorno(o.perIl) : 'ora', satispay: '393 160 9967' };
+    return String(t || '').replace(/\{(nome|uova|euro|giorno|satispay)\}/gi, (m, k) => v[k.toLowerCase()]);
+  };
+  const tplKind = o => o.stato === 'attesa' ? 'ricevuta' : o.stato === 'rifiutata' ? 'rifiuto' : o.perIl ? 'conferma' : 'normale';
+  /** Messaggio WhatsApp adatto alla prenotazione: ricevuta, conferma (anche per una data) o rifiuto */
+  const waText = o => { const k = tplKind(o), T = window.OviTpl || {}; return fill((T[k] && String(T[k]).trim()) ? T[k] : TPL[k], o); };
   const waConf = o => { const n = waNum(o.telefono); return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(waText(o)) : ''; };
   const forms = new Map();   // id → { mode, n, e, m, eTouched }
 
@@ -206,5 +212,5 @@
       run({ action: 'move', id, uova: f.n, euro, metodo: f.m || '' }, 'Registrato');
     });
   }
-  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText };
+  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, fill, TPL };
 })();
