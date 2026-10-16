@@ -35,7 +35,21 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand-2
 .btn.red{background:transparent;color:var(--err);border:1px solid color-mix(in srgb,var(--err) 40%,transparent)}
 .btn:disabled{opacity:.5}
 .login{max-width:380px;margin:30px auto}
-.login form{display:flex;gap:8px}
+.login form{display:grid;gap:10px}
+.login .lrow{display:flex;gap:8px}
+.login .lb2{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px}
+.login #code{width:100%;font-size:1.3rem;letter-spacing:.2em;text-align:center}
+.login .rem{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+.sec{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.sec summary{cursor:pointer;font-weight:600}
+.sec .box{display:grid;gap:10px;margin-top:10px}
+.sec .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sec input{padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;min-width:0;flex:1 1 180px}
+.sec .panel{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);display:grid;gap:8px}
+.sec .qr{background:#fff;padding:10px;border-radius:10px;width:max-content;max-width:100%;color:#333;font-size:.85rem}
+.sec .panel{min-width:0}.sec .panel>*{min-width:0}
+.sec code{font-size:.85rem;word-break:break-all;background:var(--card);padding:2px 6px;border-radius:6px}
+.sec .codes{display:grid;grid-template-columns:repeat(2,max-content);gap:4px 18px;font:600 1rem ui-monospace,monospace}
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 @media (max-width:860px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:480px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -150,7 +164,13 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 <main class="wrap">
   <section class="card login" id="login">
     <h2>Accesso</h2>
-    <form id="lf"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="btn">Entra</button></form>
+    <form id="lf">
+      <div class="lrow"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="btn">Entra</button></div>
+      <div id="codeBox" hidden><label for="code" class="lb2">Codice a 6 cifre dall'app di autenticazione</label>
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="11">
+        <small class="hint">Hai perso il telefono? Scrivi uno dei codici di emergenza.</small></div>
+      <label class="rem"><input type="checkbox" id="remember"> Ricorda questo dispositivo per 30 giorni</label>
+    </form>
     <p class="err" id="lerr" hidden></p>
   </section>
 
@@ -170,6 +190,21 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <button class="btn ghost" id="tgTest">Messaggio di prova</button>
       </div>
       <p class="hint">Per cambiare chat o usare un gruppo: aggiungi @oviamo_bot al gruppo, scrivi <b>/start@oviamo_bot</b> nel gruppo, poi premi "Collega l'ultima chat".</p>
+      <details class="sec" id="secBox">
+        <summary>🔐 Sicurezza <span id="secSt" class="hint"></span></summary>
+        <div class="box">
+          <form class="panel" id="pwf">
+            <b>Cambia password</b>
+            <div class="row"><input type="password" name="old" placeholder="Password attuale" autocomplete="current-password" required></div>
+            <div class="row"><input type="password" name="n1" placeholder="Nuova password (almeno 10 caratteri)" autocomplete="new-password" minlength="10" required><input type="password" name="n2" placeholder="Ripeti la nuova password" autocomplete="new-password" minlength="10" required></div>
+            <div class="row" data-need2="1" hidden><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" maxlength="11" autocomplete="one-time-code"></div>
+            <div class="row"><button class="btn">Cambia password</button><small class="hint">Gli altri dispositivi dovranno rientrare.</small></div>
+          </form>
+          <div class="panel" id="tfaP"></div>
+          <div class="panel"><b>Dispositivi</b><span class="hint">Chiude l'accesso al report su tutti i telefoni e computer, compreso questo.</span>
+            <div class="row"><button class="btn ghost" type="button" id="outAll">Esci da tutti i dispositivi</button></div></div>
+        </div>
+      </details>
     </section>
 
     <section class="card" id="waCard" hidden></section>
@@ -294,11 +329,17 @@ const eur = n => (n||0).toLocaleString('it-IT',{style:'currency',currency:'EUR'}
 const dIt = s => { const p=String(s).slice(0,10).split('-'); return p.length===3 ? `${+p[2]}/${+p[1]}/${p[0].slice(2)}` : s; };
 const pad = n => String(n).padStart(2,'0');
 const today = () => { const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
-const store = { get(k){ try{return sessionStorage.getItem(k)}catch(e){return null} }, set(k,v){ try{ v==null?sessionStorage.removeItem(k):sessionStorage.setItem(k,v) }catch(e){} } };
-let KEY = store.get('ovk') || '', D = null, chart = null, tab = 'pren', pf = '', sel = new Set(), editTk = '';
+const store = {
+  get(k){ try{ return sessionStorage.getItem(k) || localStorage.getItem(k) }catch(e){ return null } },
+  set(k,v,long){ try{ sessionStorage.removeItem(k); localStorage.removeItem(k); if(v!=null) (long?localStorage:sessionStorage).setItem(k,v) }catch(e){} }
+};
+try{ sessionStorage.removeItem('ovk'); localStorage.removeItem('ovk'); }catch(e){}   // vecchio sistema: la password non si salva più
+let SES = store.get('ovs') || '', D = null, chart = null, tab = 'pren', pf = '', sel = new Set(), editTk = '';
 
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
-const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:KEY,...body})}).then(r=>r.json());
+const hdr = () => ({'Content-Type':'text/plain;charset=utf-8','X-Ovi-Session':SES});
+function expired(){ store.set('ovs',null); SES=''; $('app').hidden=true; $('act').hidden=true; $('login').hidden=false; $('lerr').hidden=false; $('lerr').textContent='Accesso scaduto: entra di nuovo.'; }
+const post = body => fetch(SCRIPT_URL,{method:'POST',headers:hdr(),body:JSON.stringify(body)}).then(r=>r.json()).then(j=>{ if(j && j.auth) expired(); return j; });
 const WA = OviAvvisa($('waCard'), post, { canOrder: () => true, reload: () => load() });
 const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'});
 let calM = null, calSel = '';
@@ -317,20 +358,27 @@ function waLink(o, ok){
 const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Boolean).join(' + ');
 
 async function load(){
-  const j = await fetch(SCRIPT_URL+'?action=report&key='+encodeURIComponent(KEY)).then(r=>r.json());
-  if(!j.ok) throw new Error(j.error||'Errore');
+  const j = await fetch(SCRIPT_URL+'?action=report',{headers:{'X-Ovi-Session':SES},cache:'no-store'}).then(r=>r.json());
+  if(!j.ok){ if(j.auth) expired(); throw new Error(j.error||'Errore'); }
   j.trash = j.orders.filter(o=>o.eliminato).sort((a,b)=>b.eliminato.localeCompare(a.eliminato)); j.orders = j.orders.filter(o=>!o.eliminato);
   D = j; render();
 }
 $('lf').onsubmit = async e => {
-  e.preventDefault(); KEY = $('pw').value; $('lerr').hidden = true;
-  try{ await load(); store.set('ovk', KEY); enter(); }
-  catch(x){ $('lerr').hidden=false; $('lerr').textContent = x.message; }
+  e.preventDefault(); $('lerr').hidden = true;
+  const btn = e.submitter || $('lf').querySelector('button'); btn.disabled = true;
+  try{
+    const j = await fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'login',password:$('pw').value,code:$('code').value,remember:$('remember').checked})}).then(r=>r.json());
+    if (j.need2fa){ $('codeBox').hidden=false; $('code').focus(); return; }
+    if (!j.ok) throw new Error(j.error||'Errore');
+    SES = j.s; store.set('ovs', SES, $('remember').checked); $('pw').value=''; $('code').value='';
+    await load(); enter();
+  }catch(x){ $('lerr').hidden=false; $('lerr').textContent = x.message; }
+  finally{ btn.disabled = false; }
 };
-function enter(){ $('login').hidden = true; $('app').hidden = false; $('act').hidden = false; }
-$('logout').onclick = () => { store.set('ovk', null); location.reload(); };
+function enter(){ $('login').hidden = true; $('app').hidden = false; $('act').hidden = false; $('lerr').hidden = true; }
+$('logout').onclick = async () => { try{ await post({action:'logout'}); }catch(e){} store.set('ovs', null); location.reload(); };
 $('refresh').onclick = async () => { try{ await load(); toast('Aggiornato'); }catch(x){ toast(x.message); } };
-if (KEY) load().then(enter).catch(()=>{ store.set('ovk',null); KEY=''; });
+if (SES) load().then(enter).catch(()=>{});
 
 /* ---------- render ---------- */
 function render(){
@@ -464,6 +512,54 @@ $('saveSet').onclick = async () => {
     D.settings = j.settings; render(); toast('Salvato'); }catch(x){ toast(x.message||'Errore'); }
 };
 $('open').onchange = () => $('saveSet').click();
+/* ---------- sicurezza ---------- */
+let SEC = null;
+async function secLoad(){ try{ const j = await post({action:'secInfo'}); if(j.ok){ SEC=j; secRender(); } }catch(e){} }
+function secRender(){
+  $('secSt').textContent = SEC.tfa ? '· verifica in due passaggi attiva' : '· verifica in due passaggi non attiva';
+  document.querySelectorAll('[data-need2]').forEach(x=>x.hidden=!SEC.tfa);
+  $('tfaP').innerHTML = SEC.tfa
+    ? `<b>Verifica in due passaggi: ✓ attiva</b><span class="hint">All'accesso servono password e codice dell'app. Codici di emergenza rimasti: <b>${SEC.recovery}</b>.</span>
+       <form class="row" id="tfaOffF"><input type="password" name="password" placeholder="Password" required><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" required><button class="btn ghost">Disattiva</button></form>`
+    : `<b>Verifica in due passaggi</b><span class="hint">Oltre alla password, all'accesso servirà un codice a 6 cifre che cambia ogni 30 secondi, preso da un'app sul telefono (Google Authenticator, Microsoft Authenticator, Authy, oppure Password su iPhone).</span>
+       <div class="row"><button class="btn" type="button" id="tfaGo">Attiva</button></div>`;
+}
+$('outAll').onclick = async () => { if(!confirm('Uscire dal report su tutti i dispositivi?')) return; try{ await post({action:'logoutAll'}); }catch(e){} store.set('ovs',null); location.reload(); };
+$('secBox').addEventListener('toggle', () => { if($('secBox').open) secLoad(); });
+$('pwf').onsubmit = async e => {
+  e.preventDefault(); const f = e.target;
+  if (f.n1.value !== f.n2.value) return toast('Le due nuove password non coincidono');
+  try{ const j = await post({action:'pwChange', old:f.old.value, new:f.n1.value, code:f.code.value, remember:!!localStorage.getItem('ovs')}); if(!j.ok) throw new Error(j.error);
+    SES = j.s; store.set('ovs', SES, !!localStorage.getItem('ovs')); f.reset(); toast('Password cambiata'); }catch(x){ toast(x.message); }
+};
+const loadQR = () => window.QRCode ? Promise.resolve() : new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'; s.onload=ok; s.onerror=ko; document.head.appendChild(s); });
+$('tfaP').addEventListener('click', async e => {
+  if (e.target.id !== 'tfaGo') return;
+  try{ const j = await post({action:'tfaStart'}); if(!j.ok) throw new Error(j.error);
+    $('tfaP').innerHTML = `<b>1. Inquadra il codice con l'app</b><div class="qr" id="qr"></div>
+      <span class="hint">Oppure, nell'app, scegli "inserisci chiave" e scrivi: <code>${j.secret.replace(/(.{4})/g,'$1 ').trim()}</code></span>
+      <b>2. Scrivi il codice a 6 cifre che vedi nell'app</b>
+      <form class="row" id="tfaOkF"><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="6" required><button class="btn">Conferma e attiva</button></form>`;
+    try{ await loadQR(); new QRCode($('qr'), { text:j.uri, width:180, height:180 }); }catch(x){ $('qr').textContent = 'Codice QR non disponibile: usa la chiave qui sotto.'; }
+  }catch(x){ toast(x.message); }
+});
+$('tfaP').addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target;
+  if (f.id === 'tfaOkF'){
+    try{ const j = await post({action:'tfaConfirm', code:f.code.value}); if(!j.ok) throw new Error(j.error);
+      $('tfaP').innerHTML = `<b>✓ Verifica in due passaggi attiva</b>
+        <span><b>Codici di emergenza</b>: servono se perdi o cambi telefono. Ognuno vale una volta. <b>Salvali adesso</b> (foto, stampa o nelle note): non li vedrai più.</span>
+        <div class="codes">${j.recovery.map(c=>`<span>${c}</span>`).join('')}</div>
+        <div class="row"><button class="btn ghost" type="button" id="cpRec">Copia i codici</button><button class="btn" type="button" id="recOk">Li ho salvati</button></div>`;
+      $('cpRec').onclick = () => navigator.clipboard.writeText('OviAmo – codici di emergenza\n'+j.recovery.join('\n')).then(()=>toast('Copiati'),()=>toast('Copia non riuscita'));
+      $('recOk').onclick = () => { SEC.tfa = true; SEC.recovery = 8; secRender(); };
+    }catch(x){ toast(x.message); }
+  }
+  if (f.id === 'tfaOffF'){
+    if(!confirm('Disattivare la verifica in due passaggi? Basterà di nuovo solo la password.')) return;
+    try{ const j = await post({action:'tfaOff', password:f.password.value, code:f.code.value}); if(!j.ok) throw new Error(j.error); toast('Verifica in due passaggi disattivata'); secLoad(); }catch(x){ toast(x.message); }
+  }
+});
 $('tgLink').onclick = async () => {
   if(!confirm("Gli avvisi andranno all'ultima chat che ha scritto a @oviamo_bot. Continuo?")) return;
   try{ const j = await post({action:'tgLink'}); if(!j.ok) throw new Error(j.error); toast('Collegato a: ' + (j.chat || 'chat')); }catch(x){ toast(x.message||'Errore'); }
