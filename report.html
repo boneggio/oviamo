@@ -94,6 +94,7 @@ tr.detr .oo{position:sticky;left:8px;max-width:min(560px,calc(100vw - 72px))}
 .trash{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
 .trash summary{cursor:pointer;font-weight:600;color:var(--muted)}
 .trash .btn{padding:5px 10px;font-size:.8rem}
+.wab{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;background:#25d366;color:#0b2e17;font:700 .74rem Inter,sans-serif;text-decoration:none;white-space:nowrap;vertical-align:1px}
 .stb.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
 .note{color:var(--muted);font-size:.82rem;font-style:italic}
 .d{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -411,6 +412,7 @@ function render(){
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
 }
 
+const waBtn = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">💬 WhatsApp</a></div>` : ''; };
 const openDet = new Set();
 const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
 const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
@@ -434,7 +436,7 @@ function renderOrders(){
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
-    <td><button type="button" class="det" data-det="${esc(o.id)}" aria-expanded="${openDet.has(o.id)}">${openDet.has(o.id)?'▾':'▸'} <b>${esc(o.nome)} ${esc(o.cognome)}</b></button>${o.contatto?' <span class="stb rb">Rubrica</span>':''}${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${decBtns(o)}</td>
+    <td><button type="button" class="det" data-det="${esc(o.id)}" aria-expanded="${openDet.has(o.id)}">${openDet.has(o.id)?'▾':'▸'} <b>${esc(o.nome)} ${esc(o.cognome)}</b></button>${o.contatto?' <span class="stb rb">Rubrica</span>':''}${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${waBtn(o)}${decBtns(o)}</td>
     <td>${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td>
     <td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td>
     <td class="n">${eur(o.euro)}</td>
@@ -469,7 +471,7 @@ function renderCal(){
   }
   $('cal').innerHTML = h;
   const S = (byDay[calSel]||[]).slice().sort((a,b)=>(a.stato==='attesa')-(b.stato==='attesa') || a.consegnato-b.consegnato);
-  $('calD').innerHTML = `<h3>${new Date(calSel+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})}</h3>` + (S.length ? `<div class="tw"><table><thead><tr><th>Nome</th><th class="tel">Telefono</th><th class="n">Uova</th><th class="n">€</th><th class="c">Pagato</th><th class="c">Consegnato</th></tr></thead><tbody>${S.map(o=>`<tr class="${o.pagato&&o.consegnato?'done':''}"><td><b>${esc(o.nome)} ${esc(o.cognome)}</b>${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${decBtns(o)}</td><td class="tel">${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td><td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td><td class="n">${eur(o.euro)}</td><td class="c"><span class="pay2">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button></span></td><td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato"></td></tr>`).join('')}</tbody><tfoot><tr><td>${S.length} tra prenotazioni e richieste</td><td class="tel"></td><td class="n">${S.reduce((t,o)=>t+o.uova,0)}</td><td class="n">${eur(S.reduce((t,o)=>t+o.euro,0))}</td><td colspan="2"></td></tr></tfoot></table></div>` : '<p class="empty">Nessuna richiesta per questo giorno.</p>');
+  $('calD').innerHTML = `<h3>${new Date(calSel+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})}</h3>` + (S.length ? `<div class="tw"><table><thead><tr><th>Nome</th><th class="tel">Telefono</th><th class="n">Uova</th><th class="n">€</th><th class="c">Pagato</th><th class="c">Consegnato</th></tr></thead><tbody>${S.map(o=>`<tr class="${o.pagato&&o.consegnato?'done':''}"><td><b>${esc(o.nome)} ${esc(o.cognome)}</b>${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${waBtn(o)}${decBtns(o)}</td><td class="tel">${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td><td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td><td class="n">${eur(o.euro)}</td><td class="c"><span class="pay2">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button></span></td><td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato"></td></tr>`).join('')}</tbody><tfoot><tr><td>${S.length} tra prenotazioni e richieste</td><td class="tel"></td><td class="n">${S.reduce((t,o)=>t+o.uova,0)}</td><td class="n">${eur(S.reduce((t,o)=>t+o.euro,0))}</td><td colspan="2"></td></tr></tfoot></table></div>` : '<p class="empty">Nessuna richiesta per questo giorno.</p>');
 }
 $('cal').onclick = e => { const b=e.target.closest('[data-day]'); if(!b) return; calSel=b.dataset.day; if(calSel.slice(0,7)!==calM) calM=calSel.slice(0,7); renderCal(); };
 const calMove = n => { const [y,m]=calM.split('-').map(Number), d=new Date(y,m-1+n,1); calM=d.getFullYear()+'-'+pad(d.getMonth()+1); renderCal(); };
