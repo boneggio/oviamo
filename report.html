@@ -77,6 +77,9 @@ tr.done td{opacity:.55}
 .part{font-size:.72rem;color:var(--err);font-weight:600;white-space:nowrap;margin-top:2px}
 tr.detr td{background:var(--bg);padding:8px}
 tr.detr .oo{position:sticky;left:8px;max-width:min(560px,calc(100vw - 72px))}
+.trash{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.trash summary{cursor:pointer;font-weight:600;color:var(--muted)}
+.trash .btn{padding:5px 10px;font-size:.8rem}
 .stb.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
 .note{color:var(--muted);font-size:.82rem;font-style:italic}
 .d{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -202,6 +205,11 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
           <thead><tr><th class="c"><input type="checkbox" id="all" aria-label="Seleziona tutte"></th><th>Data</th><th>Nome</th><th>Telefono</th><th class="n">Uova</th><th class="n">€</th><th class="c">Pagato</th><th class="c">Consegnato</th></tr></thead>
           <tbody id="ptb"></tbody><tfoot id="ptf"></tfoot>
         </table></div>
+        <details class="trash" id="trashBox">
+          <summary>🗑️ Cestino <span id="trN"></span></summary>
+          <p class="hint">Le prenotazioni eliminate restano qui per 30 giorni, poi spariscono da sole. Le uova di una prenotazione nel cestino tornano disponibili.</p>
+          <div class="tw"><table><thead><tr><th>Nome</th><th class="n">Uova</th><th class="n">€</th></tr></thead><tbody id="trb"></tbody></table></div>
+        </details>
       </div>
 
       <!-- CALENDARIO -->
@@ -311,6 +319,7 @@ const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Bool
 async function load(){
   const j = await fetch(SCRIPT_URL+'?action=report&key='+encodeURIComponent(KEY)).then(r=>r.json());
   if(!j.ok) throw new Error(j.error||'Errore');
+  j.trash = j.orders.filter(o=>o.eliminato).sort((a,b)=>b.eliminato.localeCompare(a.eliminato)); j.orders = j.orders.filter(o=>!o.eliminato);
   D = j; render();
 }
 $('lf').onsubmit = async e => {
@@ -346,7 +355,7 @@ function render(){
 
   $('cPren').textContent = O.length; $('cCar').textContent = D.loads.length; $('cCos').textContent = D.costs.length; $('cUte').textContent = D.users.length;
   renderHens();
-  renderOrders(); renderCal(); renderLoads(); renderCosts(); renderUsers();
+  renderOrders(); renderTrash(); renderCal(); renderLoads(); renderCosts(); renderUsers();
   const cd = { sales: D.sales||[], costs:D.costs, loads:D.loads, hens:D.hens||[] };
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
 }
@@ -354,6 +363,12 @@ function render(){
 const openDet = new Set();
 const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
 const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
+function renderTrash(){
+  const T = D.trash || [];
+  $('trN').textContent = T.length ? '(' + T.length + ')' : '';
+  $('trb').innerHTML = T.map(o=>`<tr><td><b>${esc(o.nome)} ${esc(o.cognome)}</b><div class="d" style="font-size:.78rem">ordine del ${dIt(o.data)} · eliminata il ${dIt(o.eliminato)}${o.paid?` · pagati ${eur(o.paid)}`:''}</div>
+    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" data-restore="${esc(o.id)}">↩︎ Ripristina</button><button class="btn ghost" data-purge="${esc(o.id)}">Elimina per sempre</button></div></td><td class="n">${o.uova}</td><td class="n">${eur(o.euro)}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">Il cestino è vuoto.</td></tr>';
+}
 function ordersView(){
   const y = $('py').value, s = $('ps').value.trim().toLowerCase();
   return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' : true)
@@ -374,7 +389,7 @@ function renderOrders(){
     <td class="n">${eur(o.euro)}</td>
     <td class="c"><span class="pay2 ${o.pagato&&!o.metodo?'old':''}" title="${o.pagato?(o.metodo==='satispay'?'Pagato con Satispay':o.metodo==='contanti'?'Pagato in contanti':'Pagato'):'Da pagare'}">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button></span>${partPay(o)}</td>
     <td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato">${partDlv(o)}</td>
-  </tr>${openDet.has(o.id)?`<tr class="detr"><td colspan="8">${OviOrd.row(o)}</td></tr>`:''}`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
+  </tr>${openDet.has(o.id)?`<tr class="detr"><td colspan="8">${OviOrd.row(o, { del: true })}</td></tr>`:''}`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
   const s = (f)=>V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+(+o[f]||0),0);
   $('ptf').innerHTML = V.length ? `<tr><td></td><td colspan="3">${V.length} prenotazioni</td><td class="n">${s('uova')}</td><td class="n">${eur(s('euro'))}</td><td colspan="2"></td></tr>` : '';
   $('all').checked = V.length && V.every(o=>sel.has(o.id));
@@ -473,8 +488,14 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => { flag([
 OviOrd.bind($('ptb'), post, local => local ? renderOrders() : load(), id => D.orders.find(o=>o.id===id));
 $('ptb').addEventListener('click', e => { const b = e.target.closest('[data-det]'); if(!b) return; const id = b.dataset.det; openDet.has(id) ? openDet.delete(id) : openDet.add(id); renderOrders(); });
 $('bulkDel').onclick = async () => {
-  const ids = [...sel]; if(!confirm(`Eliminare ${ids.length} prenotazioni? Le uova tornano disponibili.`)) return;
-  try{ const j = await post({action:'delOrders', ids}); if(!j.ok) throw new Error(j.error); sel.clear(); await load(); toast(`Eliminate ${j.deleted}`); }catch(x){ toast(x.message); }
+  const ids = [...sel]; if(!confirm(`Spostare ${ids.length===1?'la prenotazione':ids.length+' prenotazioni'} nel cestino? Le uova tornano disponibili; puoi ripristinarle per 30 giorni.`)) return;
+  try{ const j = await post({action:'delOrders', ids}); if(!j.ok) throw new Error(j.error); sel.clear(); await load(); toast(`Nel cestino: ${j.deleted}`); }catch(x){ toast(x.message); }
+};
+$('trb').onclick = async e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if (b.dataset.restore){ try{ const j = await post({action:'restore', ids:[b.dataset.restore]}); if(!j.ok) throw new Error(j.error); await load(); toast('Ripristinata'); }catch(x){ toast(x.message); } }
+  if (b.dataset.purge){ if(!confirm('Eliminare per sempre? Non si potrà più recuperare.')) return;
+    try{ const j = await post({action:'purge', ids:[b.dataset.purge]}); if(!j.ok) throw new Error(j.error); await load(); toast('Eliminata per sempre'); }catch(x){ toast(x.message); } }
 };
 $('csv').onclick = () => {
   const V = ordersView(), q = v => `"${String(v??'').replace(/"/g,'""')}"`;
