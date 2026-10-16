@@ -121,7 +121,7 @@
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
     ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button>` : ''}
   </div>` : ''}
-  ${opt.del ? `<div><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina questa registrazione</button></div>` : ''}
+  ${opt.del ? `<div><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button></div>` : ''}
   ${mv.length ? `<details class="oo-hist"><summary>📋 Movimenti (${mv.length}) ▾</summary><div class="oo-pl">${mv.map(m => `<span>${dIt(m.data)} · ${m.uova ? '🥚 ' + uTxt(m.uova) + ' consegnate' : ''}${m.uova && m.euro > 0 ? ' · ' : ''}${m.euro > 0 ? '💶 ' + eur(m.euro) + (m.metodo === 'satispay' ? ' Satispay' : m.metodo === 'contanti' ? ' contanti' : '') : ''}<button type="button" data-oa="pdel" data-pid="${esc(m.id)}" aria-label="Annulla questo movimento">×</button></span>`).join('')}</div></details>` : ''}
 </div>`;
   }
@@ -152,7 +152,7 @@
       if (a === 'fm' && f) { f.m = b.dataset.m; f.answered = true; if (f.m) { if (!f.e) { f.eTouched = false; autoE(o, f); } } else f.e = 0; redraw(id); return; }
       b.disabled = true;
       if (a === 'all') run({ action: 'move', id, uova: left(o), euro: rest(o), metodo: b.dataset.m }, `${o.nome}: consegnate e pagate`);
-      else if (a === 'del') { if (confirm(`Spostare nel cestino la registrazione di ${o.nome} (${uTxt(o.uova)})? Le uova tornano disponibili. Si può ripristinare dal cestino nel report per 30 giorni.`)) run({ action: 'delOrders', ids: [id] }, 'Spostata nel cestino'); else b.disabled = false; }
+      else if (a === 'del') { if (confirm(`Eliminare la prenotazione di ${o.nome} ${o.cognome} (${uTxt(o.uova)})? Va nel cestino: le uova tornano disponibili e si può ripristinare dal report per 30 giorni.`)) run({ action: 'delOrders', ids: [id] }, 'Spostata nel cestino'); else b.disabled = false; }
       else if (a === 'pdel') { if (confirm('Annullare questo movimento?')) run({ action: 'payDel', pid: b.dataset.pid }, 'Movimento annullato'); else b.disabled = false; }
     });
     el.addEventListener('input', e => {
