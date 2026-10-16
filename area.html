@@ -52,6 +52,8 @@ input:focus{outline:2px solid var(--yolk);outline-offset:1px;border-color:transp
 .hist[open] summary::after{transform:rotate(180deg)}
 .hist .n{color:var(--muted);font-size:.85rem}
 .hist[open] summary{margin-bottom:8px}
+.hist.sub{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.hist.sub h2{font-size:1rem}
 .it{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--bg);font-size:.92rem}
 .it .d{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .it .w{color:var(--muted);font-size:.8rem}
@@ -98,6 +100,20 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     <svg width="44" height="56" viewBox="0 0 24 30" aria-hidden="true"><defs><radialGradient id="eg" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fffaf0"/><stop offset=".7" stop-color="#f3e3c4"/><stop offset="1" stop-color="#dcc39a"/></radialGradient></defs><ellipse cx="12" cy="16" rx="10.5" ry="13.5" fill="url(#eg)" stroke="#cfb184"/></svg>
   </section>
 
+  <section class="card" id="ordCard" hidden>
+    <h2>🧺 Prenotazioni</h2>
+    <div class="osum" id="osum"></div>
+    <div class="seg" id="of"><button data-f="np" class="on">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="">Tutte</button></div>
+    <div class="list" id="ords"></div>
+    <button class="more" id="omore" hidden>Mostra tutte</button>
+  </section>
+
+  <details class="card hist" id="histCard" hidden>
+    <summary><h2 id="lTitle">I tuoi carichi</h2><span class="n" id="lCount"></span></summary>
+    <div class="list" id="loads"></div>
+    <button class="more" id="lmore" hidden>Mostra tutti</button>
+  </details>
+
   <section class="card" id="loadCard" hidden>
     <h2>🥚 Carica le uova raccolte</h2>
     <form id="fl">
@@ -131,23 +147,11 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       </div>
       <button class="btn" id="hgo">Aggiorna il numero di galline</button>
     </form>
-    <h2 style="margin-top:18px">Storico</h2>
-    <div class="list" id="hens"></div>
+    <details class="hist sub">
+      <summary><h2>📋 Storico galline</h2><span class="n" id="hCount"></span></summary>
+      <div class="list" id="hens"></div>
+    </details>
   </section>
-
-  <section class="card" id="ordCard" hidden>
-    <h2>🧺 Prenotazioni</h2>
-    <div class="osum" id="osum"></div>
-    <div class="seg" id="of"><button data-f="np" class="on">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="">Tutte</button></div>
-    <div class="list" id="ords"></div>
-    <button class="more" id="omore" hidden>Mostra tutte</button>
-  </section>
-
-  <details class="card hist" id="histCard" hidden>
-    <summary><h2 id="lTitle">I tuoi carichi</h2><span class="n" id="lCount"></span></summary>
-    <div class="list" id="loads"></div>
-    <button class="more" id="lmore" hidden>Mostra tutti</button>
-  </details>
 
   <section class="card" id="costCard" hidden>
     <h2>🌾 Costi (mangime e altro)</h2>
@@ -160,9 +164,11 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       <div class="field"><label for="cd">Giorno</label><input id="cd" type="date"></div>
       <button class="btn" id="cgo">Aggiungi il costo</button>
     </form>
-    <h2 style="margin-top:18px">Ultimi costi</h2>
-    <div class="list" id="costs"></div>
-    <button class="more" id="cmore" hidden>Mostra tutti</button>
+    <details class="hist sub">
+      <summary><h2>📋 Storico costi</h2><span class="n" id="cCount"></span></summary>
+      <div class="list" id="costs"></div>
+      <button class="more" id="cmore" hidden>Mostra tutti</button>
+    </details>
   </section>
 
   <section class="card" id="chartCard" hidden>
@@ -220,6 +226,7 @@ function render(){
   const C = [...D.costs].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins));
   $('costs').innerHTML = (allC?C:C.slice(0,8)).map(c=>`<div class="it"><span class="d">${dIt(c.data)}</span><span>${esc(c.descr)}${c.qta?` <span class="w">${String(c.qta).replace('.',',')} ${c.unita} · ${eur(c.euro/c.qta)}/${c.unita}</span>`:''} <span class="w">${esc(c.utente)}</span></span><b>${eur(c.euro)}</b>${c.utente===D.nome?`<button class="x" data-del="cost" data-id="${esc(c.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun costo.</p>';
   $('cmore').hidden = allC || C.length <= 8;
+  $('cCount').textContent = C.length === 1 ? '1 costo' : C.length + ' costi';
   $('cdl').innerHTML = [...new Set(C.map(c=>c.descr))].slice(0,12).map(s=>`<option value="${esc(s)}">`).join('');
   const cd = {sales:D.sales, costs:D.costs, loads:D.loads, hens:D.hens||[]};
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
@@ -317,6 +324,7 @@ function renderHens(){
   if (!henInit && cur){ $('ht').value = cur.tot; $('hp').value = cur.prod; }
   henInit = true;
   $('hens').innerHTML = H.slice(0,12).map(h=>`<div class="it"><span class="d">${dIt(h.data)}</span><span>${h.note?esc(h.note)+' ':''}<span class="w">${esc(h.utente)}</span></span><b>${h.tot} / ${h.prod}</b>${h.utente===D.nome?`<button class="x" data-del="hens" data-id="${esc(h.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Nessun dato.</p>';
+  $('hCount').textContent = H.length === 1 ? '1 voce' : H.length + ' voci';
 }
 $('fh').onclick = e => { const b=e.target.closest('button[data-h]'); if(!b) return; const i=$(b.dataset.h); i.value = Math.max(0,(+i.value||0) + +b.dataset.d); };
 $('fh').onsubmit = async e => {
