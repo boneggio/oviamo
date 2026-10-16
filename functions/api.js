@@ -130,7 +130,7 @@ async function tgLink_(db, env) {
 
 /* ---------- accesso del gestore: password cifrata, codice a 6 cifre (TOTP), sessioni ---------- */
 
-const SESSION_DAYS = 30, SESSION_HOURS_SHORT = 12, PBKDF2_ITER = 10000, MAX_FAIL = 5, LOCK_MIN = 15;
+const SESSION_DAYS = 30, SESSION_HOURS_SHORT = 12, PBKDF2_ITER = 10000, MAX_FAIL = 5, MAX_FAIL_ALL = 30, LOCK_MIN = 15;
 const enc = new TextEncoder();
 const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -172,7 +172,7 @@ async function checkTotp(db, secret, code) {
 }
 /** Codici di emergenza (se perdi il telefono): ognuno vale una volta */
 async function useRecovery(db, code) {
-  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length !== 10) return false;
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/0/g, 'O').replace(/1/g, 'I').replace(/8/g, 'B'); if (c.length !== 10) return false;
   const L = JSON.parse(await getS(db, 'tfa_recovery') || '[]'), h = await sha256(c), i = L.indexOf(h);
   if (i < 0) return false;
   L.splice(i, 1); await setS(db, 'tfa_recovery', JSON.stringify(L)); return true;
@@ -197,28 +197,46 @@ async function isMaster(db, request, d) {
   return !!r && r.exp > Date.now();
 }
 
-async function login_(db, env, d) {
-  const lock = JSON.parse(await getS(db, 'login_fail') || '{"n":0,"until":0}');
-  if (lock.until > Date.now()) return json({ ok: false, error: 'Troppi tentativi sbagliati: riprova tra ' + Math.ceil((lock.until - Date.now()) / 60000) + ' minuti.' });
-  const fail = async msg => {
-    lock.n = (lock.n || 0) + 1;
-    if (lock.n >= MAX_FAIL) { lock.n = 0; lock.until = Date.now() + LOCK_MIN * 6e4; await telegram(env, db, '⚠️ OviAmo – ' + MAX_FAIL + ' tentativi sbagliati di accesso al report: bloccato per ' + LOCK_MIN + ' minuti.'); }
-    await setS(db, 'login_fail', JSON.stringify(lock));
-    await new Promise(r => setTimeout(r, 800));   // rallenta i tentativi a raffica
-    return json({ ok: false, error: msg });
+/** Limite ai tentativi sbagliati: 5 per indirizzo IP e 30 in tutto, negli ultimi 15 minuti */
+const ipOf = request => (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'x').split(',')[0].trim().slice(0, 64);
+async function limiter(db, env, request) {
+  const keys = ['lf:' + ipOf(request), 'lf:*'], now = Date.now(), win = LOCK_MIN * 6e4;
+  const st = await Promise.all(keys.map(async k => { const v = JSON.parse(await getS(db, k) || 'null'); return v && now - v.t0 < win ? v : { n: 0, t0: now }; }));
+  const locked = () => st[0].n >= MAX_FAIL || st[1].n >= MAX_FAIL_ALL;
+  const left = () => Math.max(1, Math.ceil((Math.max(st[0].n >= MAX_FAIL ? st[0].t0 : 0, st[1].n >= MAX_FAIL_ALL ? st[1].t0 : 0) + win - now) / 6e4));
+  return {
+    locked, blockedMsg: () => 'Troppi tentativi sbagliati: riprova tra ' + left() + ' minuti.',
+    async fail() {
+      const was = locked();
+      st.forEach(v => v.n++);
+      await Promise.all(keys.map((k, i) => setS(db, k, JSON.stringify(st[i]))));
+      if (!was && locked()) await telegram(env, db, '⚠️ OviAmo – troppi tentativi sbagliati di accesso al report (indirizzo ' + ipOf(request) + '): bloccato per ' + LOCK_MIN + ' minuti.');
+      await new Promise(r => setTimeout(r, 800));   // rallenta i tentativi a raffica
+    },
+    ok: () => setS(db, keys[0], null)
   };
+}
+
+async function login_(db, env, request, d) {
+  const lim = await limiter(db, env, request);
+  if (lim.locked()) return json({ ok: false, error: lim.blockedMsg() });
+  const fail = async msg => { await lim.fail(); return json({ ok: false, error: lim.locked() ? lim.blockedMsg() : msg }); };
   if (!await checkPw(db, env, d.password)) return await fail('Password errata');
   const tfa = !!(await getS(db, 'tfa_secret'));
   if (tfa && !String(d.code || '').trim()) return json({ ok: false, need2fa: true });
   if (tfa && !await checkSecond(db, d.code)) return await fail('Codice errato');
-  await setS(db, 'login_fail', null);
+  await lim.ok();
   const s = await newSession(db, !!d.remember);
   await telegram(env, db, '🔐 OviAmo – accesso al report' + (d.remember ? ' (dispositivo ricordato 30 giorni)' : '') + '.\nSe non sei stato tu, cambia subito la password.');
   return json({ ok: true, s, tfa });
 }
 
 async function security_(db, env, request, d) {
+  if (!['secInfo', 'logout', 'logoutAll', 'pwChange', 'tfaStart', 'tfaConfirm', 'tfaOff'].includes(d.action)) return null;
   const tfa = !!(await getS(db, 'tfa_secret'));
+  const lim = await limiter(db, env, request);
+  if (['pwChange', 'tfaConfirm', 'tfaOff'].includes(d.action) && lim.locked()) return json({ ok: false, error: lim.blockedMsg() });
+  const bad = async msg => { await lim.fail(); return json({ ok: false, error: lim.locked() ? lim.blockedMsg() : msg }); };
   switch (d.action) {
     case 'secInfo':
       return json({ ok: true, tfa, recovery: JSON.parse(await getS(db, 'tfa_recovery') || '[]').length, custom: !!(await getS(db, 'pw_hash')) });
@@ -235,8 +253,8 @@ async function security_(db, env, request, d) {
     case 'pwChange': {
       const pw = String(d.new || '');
       if (pw.length < 10) return json({ ok: false, error: 'La nuova password deve avere almeno 10 caratteri' });
-      if (!await checkPw(db, env, d.old)) return json({ ok: false, error: 'La password attuale non è giusta' });
-      if (tfa && !await checkSecond(db, d.code)) return json({ ok: false, error: 'Codice a 6 cifre errato' });
+      if (!await checkPw(db, env, d.old)) return await bad('La password attuale non è giusta');
+      if (tfa && !await checkSecond(db, d.code)) return await bad('Codice a 6 cifre errato');
       await setS(db, 'pw_hash', await hashPw(pw));
       await db.prepare('DELETE FROM sessions').run();     // esci da tutti gli altri dispositivi
       await telegram(env, db, '🔐 OviAmo – la password del report è stata cambiata.');
@@ -251,7 +269,7 @@ async function security_(db, env, request, d) {
     case 'tfaConfirm': {
       const sec = await getS(db, 'tfa_pending');
       if (!sec) return json({ ok: false, error: 'Ricomincia l\'attivazione' });
-      if (!await checkTotp(db, sec, d.code)) return json({ ok: false, error: 'Codice errato: controlla l\'ora del telefono e riprova' });
+      if (!await checkTotp(db, sec, d.code)) return await bad('Codice errato: controlla l\'ora del telefono e riprova');
       const codes = [...Array(8)].map(() => b32enc(rnd(7)).slice(0, 10));
       await setS(db, 'tfa_recovery', JSON.stringify(await Promise.all(codes.map(sha256))));
       await setS(db, 'tfa_secret', sec); await setS(db, 'tfa_pending', null);
@@ -259,8 +277,8 @@ async function security_(db, env, request, d) {
       return json({ ok: true, recovery: codes.map(c => c.slice(0, 5) + '-' + c.slice(5)) });
     }
     case 'tfaOff': {
-      if (!await checkPw(db, env, d.password)) return json({ ok: false, error: 'Password errata' });
-      if (!await checkSecond(db, d.code)) return json({ ok: false, error: 'Codice errato' });
+      if (!await checkPw(db, env, d.password)) return await bad('Password errata');
+      if (!await checkSecond(db, d.code)) return await bad('Codice errato');
       await setS(db, 'tfa_secret', null); await setS(db, 'tfa_recovery', null);
       await telegram(env, db, '⚠️ OviAmo – verifica in due passaggi DISATTIVATA per il report.');
       return json({ ok: true });
@@ -308,7 +326,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   try {
     const d = JSON.parse(await request.text() || '{}');
     if (!d.action) return await order_(db, env, ctx, d);
-    if (d.action === 'login') return await login_(db, env, d);
+    if (d.action === 'login') return await login_(db, env, request, d);
 
     const master = await isMaster(db, request, d);
     if (master) { const r = await security_(db, env, request, d); if (r) return r; }
