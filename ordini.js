@@ -42,6 +42,11 @@
 .oo-m button.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 16%,var(--card));color:var(--brand)}
 .oo-dec{display:grid;gap:6px;padding:9px 10px;border-radius:12px;background:color-mix(in srgb,var(--yolk) 22%,var(--card));font-size:.86rem;font-weight:600}
 .oo-dec.rej{background:var(--bg);color:var(--muted)}
+.oo-wap{position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px}
+.oo-wapb{background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px;font:500 .92rem Inter,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.oo-wapt{white-space:pre-wrap;font-size:.85rem;padding:9px 11px;border-radius:10px;background:color-mix(in srgb,#25d366 12%,var(--card,#fff));border:1px solid color-mix(in srgb,#25d366 35%,var(--line,#ddd))}
+.oo-wapb a.ob.wa{display:flex;justify-content:center;padding:11px 14px;border-radius:99px;background:#25d366;color:#0b2e17;font:700 .95rem Inter,sans-serif;text-decoration:none}
+.oo-wapb .oo-lk{justify-self:center;border:0;background:none;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit}
 .oo-sum{font-size:.86rem;padding:8px 10px;border-radius:10px;background:var(--card);border:1px dashed var(--line)}
 .oo-del{color:var(--err)!important;font-size:.8rem!important}
 .oo-lk{border:0;background:none;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.84rem}
@@ -73,14 +78,32 @@
     ricevuta: 'Ciao {nome}! Ho ricevuto la tua richiesta di {uova} per {giorno} ({euro}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚',
     conferma: 'Ciao {nome}! Ti confermo le tue {uova} per {giorno} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
     normale: 'Ciao {nome}! Ho ricevuto la tua prenotazione di {uova} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
-    rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚'
+    rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚',
+    rifiutoSubito: 'Ciao {nome}, mi dispiace: non riusciamo a darti le {uova} che hai prenotato. Quando le vedi di nuovo disponibili sul sito puoi prenotarle. – OviAmo 🥚'
   };
   const fill = (t, o) => {
     const n = String(o.nome || '').trim().split(' ')[0];
     const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uTxt(o.uova), euro: eur(o.euro), giorno: o.perIl ? giorno(o.perIl) : 'ora', satispay: '393 160 9967' };
     return String(t || '').replace(/\{(nome|uova|euro|giorno|satispay)\}/gi, (m, k) => v[k.toLowerCase()]);
   };
-  const tplKind = o => o.stato === 'attesa' ? 'ricevuta' : o.stato === 'rifiutata' ? 'rifiuto' : o.perIl ? 'conferma' : 'normale';
+  const tplKind = o => o.stato === 'attesa' ? 'ricevuta' : o.stato === 'rifiutata' ? (o.perIl ? 'rifiuto' : 'rifiutoSubito') : o.perIl ? 'conferma' : 'normale';
+  /** Nome del tasto WhatsApp: dice quale messaggio prepara */
+  const WA_LBL = { normale: 'conferma ordine', ricevuta: 'richiesta ricevuta', conferma: 'conferma data', rifiuto: 'rifiuto', rifiutoSubito: 'rifiuto' };
+  const WA_SH = { normale: 'Conferma', ricevuta: 'Ricevuta', conferma: 'Conferma data', rifiuto: 'Rifiuto', rifiutoSubito: 'Rifiuto' };
+  const waLabel = (o, short) => short ? '💬 ' + WA_SH[tplKind(o)] : '💬 WhatsApp: ' + WA_LBL[tplKind(o)];
+  /** Finestrella dopo Conferma/Rifiuta: tasto WhatsApp col messaggio giusto, pronto da premere */
+  function waPrompt(o) {
+    const u = waConf(o), old = document.getElementById('ooWaP'); if (old) old.remove();
+    const k = tplKind(o), t = k === 'rifiuto' || k === 'rifiutoSubito' ? 'Rifiutata' : 'Confermata ✓';
+    const d = document.createElement('div'); d.id = 'ooWaP'; d.className = 'oo-wap';
+    d.innerHTML = `<div class="oo-wapb" role="dialog" aria-label="Messaggio WhatsApp"><b>${t}: ${esc(o.nome)} ${esc(o.cognome || '')}</b>
+      ${u ? `<span>Vuoi avvisarla su WhatsApp? Il messaggio è già scritto:</span><div class="oo-wapt">${esc(waText(o))}</div>
+      <a class="ob wa" href="${esc(u)}" target="_blank" rel="noopener">${waLabel(o)}</a>` : '<span>Non c\'è un numero di telefono: avvisala in un altro modo.</span>'}
+      <button type="button" class="oo-lk" data-wapx>${u ? 'Non adesso' : 'Chiudi'}</button></div>`;
+    d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-wapx]') || e.target.closest('a.wa')) d.remove(); });
+    if (!document.getElementById('ooCss')) { const s = document.createElement('style'); s.id = 'ooCss'; s.textContent = css; document.head.appendChild(s); }
+    document.body.appendChild(d);
+  }
   /** Messaggio WhatsApp adatto alla prenotazione: ricevuta, conferma (anche per una data) o rifiuto */
   const waText = o => { const k = tplKind(o), T = window.OviTpl || {}; return fill((T[k] && String(T[k]).trim()) ? T[k] : TPL[k], o); };
   const waConf = o => { const n = waNum(o.telefono); return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(waText(o)) : ''; };
@@ -123,6 +146,8 @@
     </form>`;
   }
 
+  /** Un ordine "subito" si può rifiutare finché non è iniziata consegna o pagamento */
+  const canRej = o => (o.stato || 'ok') === 'ok' && !o.perIl && !cons(o) && paid(o) <= 0.005;
   function row(o, opt) {
     opt = opt || {};
     const L = left(o), R = rest(o), c = cons(o), p = paid(o), f = forms.get(o.id);
@@ -139,14 +164,16 @@
     <div class="oo-b"><span class="k">💶 Soldi</span><span class="v">pagati <b>${eur(p)}</b> di ${eur(o.euro)}</span><span class="oo-bar"><i style="width:${o.euro ? Math.min(100, p / o.euro * 100) : 100}%"></i></span>${R > 0.005 ? `<span class="r">da pagare: ${eur(R)}</span>` : '<span class="ok">✓ tutto pagato</span>'}</div>
   </div>
   ${o.stato === 'attesa' ? `<div class="oo-dec"><span>📅 Richiesta da confermare${o.perIl ? ' per ' + giorno(o.perIl) : ''}</span><div class="oo-a"><button type="button" class="ob pr" data-oa="dec" data-v="ok">✓ Conferma</button><button type="button" class="ob" data-oa="dec" data-v="rifiutata">✕ Rifiuta</button></div></div>`
-    : o.stato === 'rifiutata' ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>` : ''}
-  ${f ? formHtml(o, f) : !done(o) || waConf(o) ? `<div class="oo-a">
-    ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
+    : o.stato === 'rifiutata' ? (o.perIl ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>`
+      : `<div class="oo-dec rej"><span>Ordine rifiutato</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="ok">Annulla il rifiuto</button></div></div>`) : ''}
+  ${o.stato === 'rifiutata' ? (waConf(o) ? `<div class="oo-a"><a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a></div>` : '')
+    : f ? formHtml(o, f) : !done(o) || waConf(o) ? `<div class="oo-a">
+    ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a>` : ''}
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
     ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button>` : ''}
   </div>` : ''}
-  ${opt.del ? `<div><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button></div>` : ''}
+  ${opt.del || canRej(o) ? `<div class="oo-a">${canRej(o) ? `<button type="button" class="oo-lk oo-del" data-oa="dec" data-v="rifiutata">✕ Rifiuta ordine</button>` : ''}${opt.del ? `<button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button>` : ''}</div>` : ''}
   ${mv.length ? `<details class="oo-hist"><summary>📋 Movimenti (${mv.length}) ▾</summary><div class="oo-pl">${mv.map(m => `<span>${dIt(m.data)} · ${m.uova ? '🥚 ' + uTxt(m.uova) + ' consegnate' : ''}${m.uova && m.euro > 0 ? ' · ' : ''}${m.euro > 0 ? '💶 ' + eur(m.euro) + (m.metodo === 'satispay' ? ' Satispay' : m.metodo === 'contanti' ? ' contanti' : '') : ''}<button type="button" data-oa="pdel" data-pid="${esc(m.id)}" aria-label="Annulla questo movimento">×</button></span>`).join('')}</div></details>` : ''}
 </div>`;
   }
@@ -180,11 +207,13 @@
         const v = b.dataset.v;
         (async () => {
           try {
+            if (v === 'rifiutata' && (o.stato || 'ok') === 'ok' && !confirm(`Rifiutare l'ordine di ${o.nome} ${o.cognome || ''} (${uTxt(o.uova)})? Le uova tornano disponibili.`)) { b.disabled = false; return; }
             let j = await post({ action: 'decide', id, value: v });
             if (!j.ok && j.short && confirm(`Adesso ci sono solo ${j.available} uova disponibili e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
             if (!j.ok) { if (!j.short) toast(j.error || 'Non salvato'); b.disabled = false; return; }
             toast(v === 'ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : v === 'rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
             await reload();
+            if (v === 'ok' || v === 'rifiutata') waPrompt({ ...o, stato: v });
           } catch (x) { toast('Non salvato, riprova'); b.disabled = false; }
         })();
         return;
@@ -212,5 +241,5 @@
       run({ action: 'move', id, uova: f.n, euro, metodo: f.m || '' }, 'Registrato');
     });
   }
-  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, fill, TPL };
+  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, waLabel, waPrompt, fill, TPL };
 })();
