@@ -650,7 +650,9 @@ document.addEventListener('click', async e => {
   const d = b.dataset;
   if (d.decide){ const o = D.orders.find(x=>x.id===d.id); if(!o) return;
     b.disabled = true;
-    try{ const j = await post({action:'decide', id:o.id, value:d.decide}); if(!j.ok) throw new Error(j.error);
+    try{ let j = await post({action:'decide', id:o.id, value:d.decide});
+      if(!j.ok && j.short && confirm(`Adesso ci sono solo ${j.available} uova disponibili e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({action:'decide', id:o.id, value:d.decide, force:true});
+      if(!j.ok){ b.disabled = false; if(j.short) return; throw new Error(j.error); }
       if (d.decide==='ok' && pf==='att'){ pf=''; document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f==='')); }
       await load();
       const row = document.querySelector(`#ptb [data-sel="${CSS.escape(o.id)}"]`); if (row){ const tr=row.closest('tr'); tr.classList.add('flash'); tr.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>tr.classList.remove('flash'),2500); }
