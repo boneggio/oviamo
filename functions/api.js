@@ -34,6 +34,13 @@ const TRASH_DAYS = 30;   // dopo quanti giorni il cestino si svuota da solo
 const LOADED = '(SELECT COALESCE(SUM(uova),0) FROM loads)';
 const REMIND_DAYS = 3;   // promemoria Telegram per le richieste da confermare
 const WA_MSG = 'Ciao, se vuoi ci sono {uova} uova disponibili';   // testo predefinito "Avvisa su WhatsApp"
+/** Messaggi WhatsApp per i clienti (modificabili nel report, scheda 💬 Messaggi) */
+const WA_TPL = {
+  ricevuta: 'Ciao {nome}! Ho ricevuto la tua richiesta di {uova} per {giorno} ({euro}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚',
+  conferma: 'Ciao {nome}! Ti confermo le tue {uova} per {giorno} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
+  normale: 'Ciao {nome}! Ho ricevuto la tua prenotazione di {uova} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
+  rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚'
+};
 const all = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
 
 /* ---------- dati ---------- */
@@ -77,6 +84,13 @@ async function waMsg_(db) {
   return (r && r.v) || WA_MSG;
 }
 
+async function waTpl_(db) {
+  const r = await db.prepare("SELECT v FROM settings WHERE k = 'wa_tpl'").first();
+  let s = {}; try { s = JSON.parse((r && r.v) || '{}') || {}; } catch (e) {}
+  const o = {}; for (const k in WA_TPL) o[k] = (typeof s[k] === 'string' && s[k].trim()) ? s[k] : WA_TPL[k];
+  return o;
+}
+
 /* ---------- avvisi (Telegram) ---------- */
 
 const tgApi = (env, method, body) => fetch('https://api.telegram.org/bot' + env.TELEGRAM_TOKEN + '/' + method, {
@@ -86,9 +100,14 @@ const tgApi = (env, method, body) => fetch('https://api.telegram.org/bot' + env.
 /** Numero per wa.me: solo cifre, con prefisso 39 per i cellulari italiani scritti senza */
 const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
 const eurTxt = e => (+e || 0).toFixed(2).replace('.', ',') + ' €';
-/** Messaggio di conferma per il cliente (lo stesso testo del pulsante nelle schede) */
-const confirmTxt = (nome, uova, euro) => 'Ciao ' + String(nome || '').split(' ')[0] + '! Ho ricevuto la tua prenotazione di ' + (uova === 1 ? '1 uovo' : uova + ' uova') + ' (' + eurTxt(euro) + '). ' +
-  'Puoi pagare in contanti o con Satispay al ' + SATISPAY_PHONE.replace('+39', '').replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3') + '. Grazie! – OviAmo 🥚';
+/** Riempie un messaggio per il cliente (lo stesso testo del pulsante WhatsApp nelle schede) */
+async function waFill(db, kind, nome, uova, euro, perIl) {
+  const t = (await waTpl_(db))[kind] || '';
+  const n = String(nome || '').trim().split(' ')[0], g = perIl ? new Date(perIl + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : 'ora';
+  const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uova === 1 ? '1 uovo' : uova + ' uova', euro: eurTxt(euro), giorno: g,
+    satispay: SATISPAY_PHONE.replace('+39', '').replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3') };
+  return t.replace(/\{(nome|uova|euro|giorno|satispay)\}/gi, (m, k) => v[k.toLowerCase()]);
+}
 
 async function telegram(env, db, text, buttons) {
   if (!env.TELEGRAM_TOKEN) return false;
@@ -306,13 +325,13 @@ export async function onRequestGet({ request, env, waitUntil }) {
   }
   if (p.action === 'report') {
     if (!await isMaster(db, request, null)) return json({ ok: false, auth: true, error: 'Accesso scaduto: entra di nuovo' });
-    const [orders, loads, costs, hens, users, settings, available, contacts, waMsg] = await Promise.all([orders_(db), loads_(db), costs_(db), hens_(db), users_(db), settings_(db), available_(db), contacts_(db), waMsg_(db)]);
-    return json({ ok: true, orders, loads, costs, hens, users, settings, available, contacts, waMsg, sales: sales_(orders) });
+    const [orders, loads, costs, hens, users, settings, available, contacts, waMsg, waTpl] = await Promise.all([orders_(db), loads_(db), costs_(db), hens_(db), users_(db), settings_(db), available_(db), contacts_(db), waMsg_(db), waTpl_(db)]);
+    return json({ ok: true, orders, loads, costs, hens, users, settings, available, contacts, waMsg, waTpl, waTplDef: WA_TPL, sales: sales_(orders) });
   }
   if (p.action === 'area') {
     const u = await userByToken(db, p.t);
     if (!u) return json({ ok: false, error: 'Link non valido. Chiedi un nuovo link a chi gestisce OviAmo.' });
-    const out = { ok: true, nome: u.nome, ruolo: u.ruolo, available: await available_(db), contacts: await contacts_(db), waMsg: await waMsg_(db) };
+    const out = { ok: true, nome: u.nome, ruolo: u.ruolo, available: await available_(db), contacts: await contacts_(db), waMsg: await waMsg_(db), waTpl: await waTpl_(db) };
     const loads = await loads_(db);
     if (u.ruolo === 'intermedio') {
       out.loads = loads; out.costs = await costs_(db); out.hens = await hens_(db);
@@ -372,6 +391,12 @@ export async function onRequestPost({ request, env, waitUntil }) {
         return json({ ok: true, purged: ids.length ? await purge_(db, `eliminato <> '' AND id IN (${ids.map(() => '?').join(',')})`, ...ids) : 0 });
       }
       case 'settings': return await saveSettings_(db, d);
+      case 'waTpl': {   // messaggi WhatsApp per i clienti: un testo vuoto torna a quello originale
+        const t = d.tpl || {}, o = {};
+        for (const k in WA_TPL) { const v = clean(t[k], 600); if (v && v !== WA_TPL[k]) o[k] = v; }
+        await db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('wa_tpl', ?)").bind(JSON.stringify(o)).run();
+        return json({ ok: true, waTpl: await waTpl_(db) });
+      }
       case 'userSave': return await userSave_(db, d);
       case 'decide': return await decide_(db, d);
       case 'tgLink': return await tgLink_(db, env);
@@ -428,7 +453,7 @@ async function order_(db, env, ctx, d) {
     (telefono ? '\nTel: ' + telefono : '') +
     (note ? '\nNote: ' + note : '') +
     '\nUova ancora disponibili: ' + (left - uova),
-    [...(waNum(telefono) ? [[{ text: '💬 Conferma su WhatsApp', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(confirmTxt(nome, uova, euro)) }]] : []),
+    [...(waNum(telefono) ? [[{ text: '💬 Conferma su WhatsApp', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(await waFill(db, perIl ? 'conferma' : 'normale', nome, uova, euro, perIl)) }]] : []),
      [{ text: '📋 Apri il report', url: SITE + '/report.html' }]]);
   return json(res);
 }
@@ -450,9 +475,7 @@ async function request_(db, env, d, rid) {
     .bind(newId('p'), now_(), nome, cognome, telefono, q1, q6, uova, euro, note, d.perIl).run();
   const res = { ok: true, richiesta: true, uova, euro, perIl: d.perIl };
   if (rid) await db.prepare('INSERT OR REPLACE INTO idem (rid, res, ts) VALUES (?, ?, ?)').bind(rid, JSON.stringify(res), Date.now()).run();
-  const giorno = new Date(d.perIl + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-  const ack = 'Ciao ' + String(nome).split(' ')[0] + '! Ho ricevuto la tua richiesta di ' + (uova === 1 ? '1 uovo' : uova + ' uova') + ' per ' + giorno + ' (' + eurTxt(euro) + '). ' +
-    'Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚';
+  const ack = await waFill(db, 'ricevuta', nome, uova, euro, d.perIl);
   await telegram(env, db, '📅 OviAmo – nuova richiesta da confermare\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') +
     ' per ' + dIt(d.perIl) + '\nTel: ' + telefono + (note ? '\nNote: ' + note : '') +
     '\nUova disponibili ora: ' + await available_(db),
