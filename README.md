@@ -6,7 +6,7 @@ Prenotazione delle uova fresche – https://oviamo.boneggio.it
 - `area.html?k=…` – pagina personale di chi carica le uova (e, per l'utente intermedio, costi e grafico)
 - `report.html` – report del gestore (password)
 - `grafico.js` – grafico vendite / costi
+- `avvisa.js` – riquadro "Avvisa su WhatsApp" (rubrica e testo con le uova disponibili)
+- `functions/api.js` – motore (Cloudflare Pages Function), dati nel database Cloudflare D1 (`schema.sql`)
 
-I dati stanno in un Foglio Google, gestito da uno script Google Apps Script.
-
-_Ultimo aggiornamento: 5 ottobre 2026_
+_Ultimo aggiornamento: 16 ottobre 2026_
