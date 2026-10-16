@@ -39,7 +39,8 @@ const WA_TPL = {
   ricevuta: 'Ciao {nome}! Ho ricevuto la tua richiesta di {uova} per {giorno} ({euro}). Ti scrivo qualche giorno prima per confermarti se ci sono. Grazie! – OviAmo 🥚',
   conferma: 'Ciao {nome}! Ti confermo le tue {uova} per {giorno} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
   normale: 'Ciao {nome}! Ho ricevuto la tua prenotazione di {uova} ({euro}). Puoi pagare in contanti o con Satispay al {satispay}. Grazie! – OviAmo 🥚',
-  rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚'
+  rifiuto: 'Ciao {nome}, mi dispiace: per {giorno} non riusciamo ad avere le {uova} che hai chiesto. Quando le vedi disponibili sul sito puoi prenotarle subito. – OviAmo 🥚',
+  rifiutoSubito: 'Ciao {nome}, mi dispiace: non riusciamo a darti le {uova} che hai prenotato. Quando le vedi di nuovo disponibili sul sito puoi prenotarle. – OviAmo 🥚'
 };
 const all = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
 
