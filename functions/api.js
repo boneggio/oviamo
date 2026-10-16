@@ -2,7 +2,7 @@
  * OviAmo – motore su Cloudflare (Pages Function + database D1)
  * Indirizzo: /api   (GET ?action=info|report|area, POST con JSON)
  * Segreti da impostare in Cloudflare (Settings > Variables and Secrets):
- *   MASTER_KEY      = password del report
+ *   MASTER_KEY      = password iniziale del report (finché non la cambi dal report; poi vale quella cifrata nel database)
  *   TELEGRAM_TOKEN  = token del bot Telegram per gli avvisi (facoltativo)
  * La chat Telegram a cui scrivere si collega dal report (azione 'tgLink'): scrivi al bot, poi collega.
  */
@@ -127,6 +127,148 @@ async function tgLink_(db, env) {
   return json({ ok: !!sent.ok, chat: chat.first_name || chat.title || '', error: sent.ok ? undefined : sent.description });
 }
 
+
+/* ---------- accesso del gestore: password cifrata, codice a 6 cifre (TOTP), sessioni ---------- */
+
+const SESSION_DAYS = 30, SESSION_HOURS_SHORT = 12, PBKDF2_ITER = 10000, MAX_FAIL = 5, LOCK_MIN = 15;
+const enc = new TextEncoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const sha256 = async t => hex(await crypto.subtle.digest('SHA-256', enc.encode(t)));
+const same = (a, b) => { a = String(a); b = String(b); let r = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return r === 0; };
+const getS = async (db, k) => { const r = await db.prepare('SELECT v FROM settings WHERE k = ?').bind(k).first(); return r ? r.v : ''; };
+const setS = (db, k, v) => v === null ? db.prepare('DELETE FROM settings WHERE k = ?').bind(k).run() : db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').bind(k, String(v)).run();
+
+async function pbkdf2(pw, salt, it = PBKDF2_ITER) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: it }, key, 256));
+}
+async function hashPw(pw) { const salt = rnd(16); return b64(salt) + ':' + await pbkdf2(pw, salt) + ':' + PBKDF2_ITER; }
+/** La password è quella cambiata dal report (salvata cifrata); se non è mai stata cambiata vale il segreto MASTER_KEY */
+async function checkPw(db, env, pw) {
+  pw = String(pw || ''); if (!pw) return false;
+  const h = await getS(db, 'pw_hash');
+  if (h) { const [salt, hash, it] = h.split(':'); return same(await pbkdf2(pw, unb64(salt), +it || PBKDF2_ITER), hash); }
+  return !!env.MASTER_KEY && same(pw, env.MASTER_KEY);
+}
+
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const b32enc = bytes => { let bits = 0, val = 0, out = ''; for (const b of bytes) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += B32[(val << (5 - bits)) & 31]; return out; };
+const b32dec = s => { let bits = 0, val = 0; const out = []; for (const c of s.replace(/=+$/, '').toUpperCase()) { const i = B32.indexOf(c); if (i < 0) continue; val = (val << 5) | i; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); };
+async function totp(secret, step) {
+  const key = await crypto.subtle.importKey('raw', b32dec(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const msg = new ArrayBuffer(8); new DataView(msg).setUint32(4, step);
+  const h = new Uint8Array(await crypto.subtle.sign('HMAC', key, msg)), o = h[19] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, '0');
+}
+/** Verifica un codice a 6 cifre (accetta 30 secondi prima/dopo; ogni codice vale una volta sola) */
+async function checkTotp(db, secret, code) {
+  code = String(code || '').replace(/\D/g, ''); if (code.length !== 6) return false;
+  const now = Math.floor(Date.now() / 30000), last = +(await getS(db, 'tfa_last')) || 0;
+  for (const st of [now - 1, now, now + 1]) if (st > last && same(await totp(secret, st), code)) { await setS(db, 'tfa_last', st); return true; }
+  return false;
+}
+/** Codici di emergenza (se perdi il telefono): ognuno vale una volta */
+async function useRecovery(db, code) {
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length !== 10) return false;
+  const L = JSON.parse(await getS(db, 'tfa_recovery') || '[]'), h = await sha256(c), i = L.indexOf(h);
+  if (i < 0) return false;
+  L.splice(i, 1); await setS(db, 'tfa_recovery', JSON.stringify(L)); return true;
+}
+async function checkSecond(db, code) {
+  const sec = await getS(db, 'tfa_secret');
+  if (!sec) return true;
+  return await checkTotp(db, sec, code) || await useRecovery(db, code);
+}
+
+async function newSession(db, long) {
+  const tok = b64(rnd(32)).replace(/[+/=]/g, c => ({ '+': '-', '/': '_', '=': '' }[c]));
+  const exp = Date.now() + (long ? SESSION_DAYS * 864e5 : SESSION_HOURS_SHORT * 36e5);
+  await db.prepare('DELETE FROM sessions WHERE exp < ?').bind(Date.now()).run();
+  await db.prepare('INSERT INTO sessions (h, creato, exp) VALUES (?, ?, ?)').bind(await sha256(tok), now_(), exp).run();
+  return tok;
+}
+async function isMaster(db, request, d) {
+  const tok = (request.headers.get('X-Ovi-Session') || (d && d.s) || '').trim();
+  if (tok.length < 20) return false;
+  const r = await db.prepare('SELECT exp FROM sessions WHERE h = ?').bind(await sha256(tok)).first();
+  return !!r && r.exp > Date.now();
+}
+
+async function login_(db, env, d) {
+  const lock = JSON.parse(await getS(db, 'login_fail') || '{"n":0,"until":0}');
+  if (lock.until > Date.now()) return json({ ok: false, error: 'Troppi tentativi sbagliati: riprova tra ' + Math.ceil((lock.until - Date.now()) / 60000) + ' minuti.' });
+  const fail = async msg => {
+    lock.n = (lock.n || 0) + 1;
+    if (lock.n >= MAX_FAIL) { lock.n = 0; lock.until = Date.now() + LOCK_MIN * 6e4; await telegram(env, db, '⚠️ OviAmo – ' + MAX_FAIL + ' tentativi sbagliati di accesso al report: bloccato per ' + LOCK_MIN + ' minuti.'); }
+    await setS(db, 'login_fail', JSON.stringify(lock));
+    await new Promise(r => setTimeout(r, 800));   // rallenta i tentativi a raffica
+    return json({ ok: false, error: msg });
+  };
+  if (!await checkPw(db, env, d.password)) return await fail('Password errata');
+  const tfa = !!(await getS(db, 'tfa_secret'));
+  if (tfa && !String(d.code || '').trim()) return json({ ok: false, need2fa: true });
+  if (tfa && !await checkSecond(db, d.code)) return await fail('Codice errato');
+  await setS(db, 'login_fail', null);
+  const s = await newSession(db, !!d.remember);
+  await telegram(env, db, '🔐 OviAmo – accesso al report' + (d.remember ? ' (dispositivo ricordato 30 giorni)' : '') + '.\nSe non sei stato tu, cambia subito la password.');
+  return json({ ok: true, s, tfa });
+}
+
+async function security_(db, env, request, d) {
+  const tfa = !!(await getS(db, 'tfa_secret'));
+  switch (d.action) {
+    case 'secInfo':
+      return json({ ok: true, tfa, recovery: JSON.parse(await getS(db, 'tfa_recovery') || '[]').length, custom: !!(await getS(db, 'pw_hash')) });
+    case 'logout': {
+      const tok = request.headers.get('X-Ovi-Session') || d.s || '';
+      await db.prepare('DELETE FROM sessions WHERE h = ?').bind(await sha256(tok)).run();
+      return json({ ok: true });
+    }
+    case 'logoutAll': {
+      await db.prepare('DELETE FROM sessions').run();
+      await telegram(env, db, '🔐 OviAmo – chiuse le sessioni del report su tutti i dispositivi.');
+      return json({ ok: true });
+    }
+    case 'pwChange': {
+      const pw = String(d.new || '');
+      if (pw.length < 10) return json({ ok: false, error: 'La nuova password deve avere almeno 10 caratteri' });
+      if (!await checkPw(db, env, d.old)) return json({ ok: false, error: 'La password attuale non è giusta' });
+      if (tfa && !await checkSecond(db, d.code)) return json({ ok: false, error: 'Codice a 6 cifre errato' });
+      await setS(db, 'pw_hash', await hashPw(pw));
+      await db.prepare('DELETE FROM sessions').run();     // esci da tutti gli altri dispositivi
+      await telegram(env, db, '🔐 OviAmo – la password del report è stata cambiata.');
+      return json({ ok: true, s: await newSession(db, !!d.remember) });
+    }
+    case 'tfaStart': {
+      if (tfa) return json({ ok: false, error: 'La verifica in due passaggi è già attiva' });
+      const sec = b32enc(rnd(20));
+      await setS(db, 'tfa_pending', sec);
+      return json({ ok: true, secret: sec, uri: 'otpauth://totp/OviAmo:report?secret=' + sec + '&issuer=OviAmo&digits=6&period=30' });
+    }
+    case 'tfaConfirm': {
+      const sec = await getS(db, 'tfa_pending');
+      if (!sec) return json({ ok: false, error: 'Ricomincia l\'attivazione' });
+      if (!await checkTotp(db, sec, d.code)) return json({ ok: false, error: 'Codice errato: controlla l\'ora del telefono e riprova' });
+      const codes = [...Array(8)].map(() => b32enc(rnd(7)).slice(0, 10));
+      await setS(db, 'tfa_recovery', JSON.stringify(await Promise.all(codes.map(sha256))));
+      await setS(db, 'tfa_secret', sec); await setS(db, 'tfa_pending', null);
+      await telegram(env, db, '🔐 OviAmo – verifica in due passaggi attivata per il report.');
+      return json({ ok: true, recovery: codes.map(c => c.slice(0, 5) + '-' + c.slice(5)) });
+    }
+    case 'tfaOff': {
+      if (!await checkPw(db, env, d.password)) return json({ ok: false, error: 'Password errata' });
+      if (!await checkSecond(db, d.code)) return json({ ok: false, error: 'Codice errato' });
+      await setS(db, 'tfa_secret', null); await setS(db, 'tfa_recovery', null);
+      await telegram(env, db, '⚠️ OviAmo – verifica in due passaggi DISATTIVATA per il report.');
+      return json({ ok: true });
+    }
+  }
+  return null;
+}
+
 /* ---------- GET ---------- */
 
 export async function onRequestGet({ request, env, waitUntil }) {
@@ -137,7 +279,7 @@ export async function onRequestGet({ request, env, waitUntil }) {
     return json({ ok: true, open: s.open && left > 0, closedByHand: !s.open, available: left, msg: s.msg || DEFAULT_MSG, price1: PRICE_1, price6: PRICE_6, minData: addDays(today_(), 1) });
   }
   if (p.action === 'report') {
-    if (!env.MASTER_KEY || p.key !== env.MASTER_KEY) return json({ ok: false, error: 'Password errata' });
+    if (!await isMaster(db, request, null)) return json({ ok: false, auth: true, error: 'Accesso scaduto: entra di nuovo' });
     const [orders, loads, costs, hens, users, settings, available, contacts, waMsg] = await Promise.all([orders_(db), loads_(db), costs_(db), hens_(db), users_(db), settings_(db), available_(db), contacts_(db), waMsg_(db)]);
     return json({ ok: true, orders, loads, costs, hens, users, settings, available, contacts, waMsg, sales: sales_(orders) });
   }
@@ -166,10 +308,12 @@ export async function onRequestPost({ request, env, waitUntil }) {
   try {
     const d = JSON.parse(await request.text() || '{}');
     if (!d.action) return await order_(db, env, ctx, d);
+    if (d.action === 'login') return await login_(db, env, d);
 
-    const master = !!env.MASTER_KEY && d.key === env.MASTER_KEY;
+    const master = await isMaster(db, request, d);
+    if (master) { const r = await security_(db, env, request, d); if (r) return r; }
     const u = master ? { nome: 'Master', ruolo: 'master' } : await userByToken(db, d.t);
-    if (!u) return json({ ok: false, error: 'Accesso non valido' });
+    if (!u) return json({ ok: false, auth: true, error: 'Accesso non valido' });
     const canCost = master || u.ruolo === 'intermedio';
 
     switch (d.action) {
@@ -214,7 +358,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
 }
 
 export function onRequestOptions() {
-  return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type' } });
+  return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type, X-Ovi-Session' } });
 }
 
 async function order_(db, env, ctx, d) {
