@@ -40,7 +40,7 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand-2
 .login .lb2{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px}
 .login #code{width:100%;font-size:1.3rem;letter-spacing:.2em;text-align:center}
 .login .rem{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
-.sec{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.sec{display:grid;gap:4px}
 .sec summary{cursor:pointer;font-weight:600}
 .sec .box{display:grid;gap:10px;margin-top:10px}
 .sec .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -190,21 +190,6 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <button class="btn ghost" id="tgTest">Messaggio di prova</button>
       </div>
       <p class="hint">Per cambiare chat o usare un gruppo: aggiungi @oviamo_bot al gruppo, scrivi <b>/start@oviamo_bot</b> nel gruppo, poi premi "Collega l'ultima chat".</p>
-      <details class="sec" id="secBox">
-        <summary>🔐 Sicurezza <span id="secSt" class="hint"></span></summary>
-        <div class="box">
-          <form class="panel" id="pwf">
-            <b>Cambia password</b>
-            <div class="row"><input type="password" name="old" placeholder="Password attuale" autocomplete="current-password" required></div>
-            <div class="row"><input type="password" name="n1" placeholder="Nuova password (almeno 10 caratteri)" autocomplete="new-password" minlength="10" required><input type="password" name="n2" placeholder="Ripeti la nuova password" autocomplete="new-password" minlength="10" required></div>
-            <div class="row" data-need2="1" hidden><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" maxlength="11" autocomplete="one-time-code"></div>
-            <div class="row"><button class="btn">Cambia password</button><small class="hint">Gli altri dispositivi dovranno rientrare.</small></div>
-          </form>
-          <div class="panel" id="tfaP"></div>
-          <div class="panel"><b>Dispositivi</b><span class="hint">Chiude l'accesso al report su tutti i telefoni e computer, compreso questo.</span>
-            <div class="row"><button class="btn ghost" type="button" id="outAll">Esci da tutti i dispositivi</button></div></div>
-        </div>
-      </details>
     </section>
 
     <section class="card" id="waCard" hidden></section>
@@ -218,6 +203,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <button data-t="gal">Galline<span class="c" id="cGal">–</span></button>
         <button data-t="ute">Utenti<span class="c" id="cUte">0</span></button>
         <button data-t="gra">Grafico</button>
+        <button data-t="sic">🔐 Sicurezza</button>
       </nav>
 
       <!-- PRENOTAZIONI -->
@@ -308,7 +294,24 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 
       <!-- GRAFICO -->
       <div data-p="gra" hidden><div id="chart"></div>
-        <p class="hint">Le vendite contano solo le prenotazioni segnate come pagate, alla data in cui le hai segnate.</p></div>
+        <p class="hint">Le vendite contano i pagamenti ricevuti, alla data di ciascun pagamento.</p></div>
+
+      <!-- SICUREZZA -->
+      <div data-p="sic" hidden class="sec" id="secBox">
+        <h3 style="margin:4px 0 0">🔐 Impostazioni di sicurezza <span id="secSt" class="hint"></span></h3>
+        <div class="box">
+          <form class="panel" id="pwf">
+            <b>Cambia password</b>
+            <div class="row"><input type="password" name="old" placeholder="Password attuale" autocomplete="current-password" required></div>
+            <div class="row"><input type="password" name="n1" placeholder="Nuova password (almeno 10 caratteri)" autocomplete="new-password" minlength="10" required><input type="password" name="n2" placeholder="Ripeti la nuova password" autocomplete="new-password" minlength="10" required></div>
+            <div class="row" data-need2="1" hidden><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" maxlength="11" autocomplete="one-time-code"></div>
+            <div class="row"><button class="btn">Cambia password</button><small class="hint">Gli altri dispositivi dovranno rientrare.</small></div>
+          </form>
+          <div class="panel" id="tfaP"></div>
+          <div class="panel"><b>Dispositivi</b><span class="hint">Chiude l'accesso al report su tutti i telefoni e computer, compreso questo.</span>
+            <div class="row"><button class="btn ghost" type="button" id="outAll">Esci da tutti i dispositivi</button></div></div>
+        </div>
+      </div>
     </section>
   </div>
 </main>
@@ -502,7 +505,7 @@ function renderUsers(){
 /* ---------- azioni ---------- */
 $('tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; tab=b.dataset.t;
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('[data-p]').forEach(p=>p.hidden = p.dataset.p!==tab); if(tab==='gra'&&chart) chart.update({}); };
+  document.querySelectorAll('[data-p]').forEach(p=>p.hidden = p.dataset.p!==tab); if(tab==='gra'&&chart) chart.update({}); if(tab==='sic') secLoad(); };
 $('pf').onclick = e => { const b=e.target.closest('button'); if(!b) return; pf=b.dataset.f;
   document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x===b)); renderOrders(); };
 $('py').onchange = renderOrders; $('ps').oninput = renderOrders;
@@ -525,7 +528,7 @@ function secRender(){
        <div class="row"><button class="btn" type="button" id="tfaGo">Attiva</button></div>`;
 }
 $('outAll').onclick = async () => { if(!confirm('Uscire dal report su tutti i dispositivi?')) return; try{ await post({action:'logoutAll'}); }catch(e){} store.set('ovs',null); location.reload(); };
-$('secBox').addEventListener('toggle', () => { if($('secBox').open) secLoad(); });
+
 $('pwf').onsubmit = async e => {
   e.preventDefault(); const f = e.target;
   if (f.n1.value !== f.n2.value) return toast('Le due nuove password non coincidono');
