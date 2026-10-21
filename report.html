@@ -601,7 +601,7 @@ function secRender(){
   $('tfaP').innerHTML = SEC.tfa
     ? `<b>Verifica in due passaggi: ✓ attiva</b><span class="hint">All'accesso servono password e codice dell'app. Codici di emergenza rimasti: <b>${SEC.recovery}</b>.</span>
        <b style="margin-top:6px">Nuovi codici di emergenza</b><span class="hint">Crea 8 codici nuovi: quelli vecchi (anche quelli non usati) smettono di valere.</span>
-       <form class="row" id="tfaNewF"><input type="password" name="password" placeholder="Password" autocomplete="current-password" required><input name="code" placeholder="Codice a 6 cifre" autocomplete="one-time-code" required><button class="btn">Genera nuovi codici</button></form>
+       <form class="row" id="tfaNewF"><input type="password" name="password" placeholder="Password" autocomplete="current-password" required><input name="code" placeholder="Codice a 6 cifre" autocomplete="one-time-code" required><button class="btn">Genera nuovi codici (i vecchi non varranno più)</button></form>
        <b style="margin-top:6px">Disattiva</b>
        <form class="row" id="tfaOffF"><input type="password" name="password" placeholder="Password" required><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" required><button class="btn ghost">Disattiva</button></form>`
     : `<b>Verifica in due passaggi</b><span class="hint">Oltre alla password, all'accesso servirà un codice a 6 cifre che cambia ogni 30 secondi, preso da un'app sul telefono (Google Authenticator, Microsoft Authenticator, Authy, oppure Password su iPhone).</span>
@@ -632,7 +632,6 @@ $('tfaP').addEventListener('submit', async e => {
     try{ const j = await post({action:'tfaConfirm', code:f.code.value}); if(!j.ok) throw new Error(j.error); showCodes(j.recovery, '✓ Verifica in due passaggi attiva'); }catch(x){ toast(x.message); }
   }
   if (f.id === 'tfaNewF'){
-    if(!confirm('Creare 8 codici di emergenza nuovi? Quelli vecchi non varranno più.')) return;
     try{ const j = await post({action:'tfaNewCodes', password:f.password.value, code:f.code.value}); if(!j.ok) throw new Error(j.error); showCodes(j.recovery, '✓ Nuovi codici di emergenza'); }catch(x){ toast(x.message); }
   }
   function showCodes(list, title){ const j = { recovery: list };
