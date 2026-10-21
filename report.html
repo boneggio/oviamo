@@ -600,6 +600,9 @@ function secRender(){
   document.querySelectorAll('[data-need2]').forEach(x=>x.hidden=!SEC.tfa);
   $('tfaP').innerHTML = SEC.tfa
     ? `<b>Verifica in due passaggi: ✓ attiva</b><span class="hint">All'accesso servono password e codice dell'app. Codici di emergenza rimasti: <b>${SEC.recovery}</b>.</span>
+       <b style="margin-top:6px">Nuovi codici di emergenza</b><span class="hint">Crea 8 codici nuovi: quelli vecchi (anche quelli non usati) smettono di valere.</span>
+       <form class="row" id="tfaNewF"><input type="password" name="password" placeholder="Password" autocomplete="current-password" required><input name="code" placeholder="Codice a 6 cifre" autocomplete="one-time-code" required><button class="btn">Genera nuovi codici</button></form>
+       <b style="margin-top:6px">Disattiva</b>
        <form class="row" id="tfaOffF"><input type="password" name="password" placeholder="Password" required><input name="code" inputmode="numeric" placeholder="Codice a 6 cifre" required><button class="btn ghost">Disattiva</button></form>`
     : `<b>Verifica in due passaggi</b><span class="hint">Oltre alla password, all'accesso servirà un codice a 6 cifre che cambia ogni 30 secondi, preso da un'app sul telefono (Google Authenticator, Microsoft Authenticator, Authy, oppure Password su iPhone).</span>
        <div class="row"><button class="btn" type="button" id="tfaGo">Attiva</button></div>`;
@@ -626,14 +629,19 @@ $('tfaP').addEventListener('click', async e => {
 $('tfaP').addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target;
   if (f.id === 'tfaOkF'){
-    try{ const j = await post({action:'tfaConfirm', code:f.code.value}); if(!j.ok) throw new Error(j.error);
-      $('tfaP').innerHTML = `<b>✓ Verifica in due passaggi attiva</b>
+    try{ const j = await post({action:'tfaConfirm', code:f.code.value}); if(!j.ok) throw new Error(j.error); showCodes(j.recovery, '✓ Verifica in due passaggi attiva'); }catch(x){ toast(x.message); }
+  }
+  if (f.id === 'tfaNewF'){
+    if(!confirm('Creare 8 codici di emergenza nuovi? Quelli vecchi non varranno più.')) return;
+    try{ const j = await post({action:'tfaNewCodes', password:f.password.value, code:f.code.value}); if(!j.ok) throw new Error(j.error); showCodes(j.recovery, '✓ Nuovi codici di emergenza'); }catch(x){ toast(x.message); }
+  }
+  function showCodes(list, title){ const j = { recovery: list };
+      $('tfaP').innerHTML = `<b>${title}</b>
         <span><b>Codici di emergenza</b>: servono se perdi o cambi telefono. Ognuno vale una volta. <b>Salvali adesso</b> (foto, stampa o nelle note): non li vedrai più.</span>
         <div class="codes">${j.recovery.map(c=>`<span>${c}</span>`).join('')}</div>
         <div class="row"><button class="btn ghost" type="button" id="cpRec">Copia i codici</button><button class="btn" type="button" id="recOk">Li ho salvati</button></div>`;
       $('cpRec').onclick = () => navigator.clipboard.writeText('OviAmo – codici di emergenza\n'+j.recovery.join('\n')).then(()=>toast('Copiati'),()=>toast('Copia non riuscita'));
       $('recOk').onclick = () => { SEC.tfa = true; SEC.recovery = 8; secRender(); };
-    }catch(x){ toast(x.message); }
   }
   if (f.id === 'tfaOffF'){
     if(!confirm('Disattivare la verifica in due passaggi? Basterà di nuovo solo la password.')) return;
