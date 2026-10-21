@@ -273,6 +273,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         </details>
         </div>
         </details>
+        <div class="stockw" id="manoBox" style="margin-top:14px"></div>
       </div>
 
       <!-- CALENDARIO -->
@@ -292,6 +293,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
           <div style="grid-column:span 2"><label for="ln">Note <span style="font-weight:400;color:var(--muted)">(es. rotte, consumate)</span></label><input id="ln" maxlength="200"></div>
           <div class="fb"><button class="btn">+ Aggiungi</button><button class="btn red" type="button" id="lminus">− Togli uova</button></div>
         </form>
+        <div class="stockw" id="spostaBox"></div>
         <div class="sum" id="lsum"></div>
         <div class="tw"><table><thead><tr><th>Giorno</th><th>Chi</th><th>Dove</th><th>Note</th><th class="n">Uova</th><th></th></tr></thead><tbody id="ltb"></tbody></table></div>
       </div>
@@ -396,7 +398,7 @@ const hdr = () => ({'Content-Type':'text/plain;charset=utf-8','X-Ovi-Session':SE
 function expired(){ store.set('ovs',null); SES=''; $('app').hidden=true; $('act').hidden=true; $('login').hidden=false; $('lerr').hidden=false; $('lerr').textContent='Accesso scaduto: entra di nuovo.'; }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:hdr(),body:JSON.stringify(body)}).then(r=>r.json()).then(j=>{ if(j && j.auth) expired(); return j; });
 const WA = OviAvvisa($('waCard'), post, { canOrder: () => true, reload: () => load() });
-const STOCK = OviOrd.stock($('stockBox'), post, () => load());
+const STOCK = OviOrd.stock($('stockBox'), post, () => load(), { sposta: $('spostaBox'), mano: $('manoBox') });
 const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'});
 let calM = null, calSel = '';
 const stBadge = o => o.stato==='attesa' ? '<span class="stb att">Da confermare</span>' : o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
