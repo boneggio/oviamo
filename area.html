@@ -128,6 +128,8 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     </div>
   </details>
 
+  <section class="card" id="manoBox" hidden></section>
+
   <section class="card" id="loadCard" hidden>
     <h2>🥚 Carica le uova raccolte</h2>
     <form id="fl">
@@ -145,6 +147,8 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       <button class="btn" id="lgo">Aggiungi le uova</button>
     </form>
   </section>
+
+  <section class="card" id="spostaBox" hidden></section>
 
   <details class="card hist" id="histCard" hidden>
     <summary><h2 id="lTitle">I tuoi carichi</h2><span class="n" id="lCount"></span></summary>
@@ -220,7 +224,7 @@ let D = null, chart = null, allL = false, allC = false, allO = false, allOD = fa
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TK,...body})}).then(r=>r.json());
 const WA = OviAvvisa($('waCard'), post, { canOrder: () => D && D.ruolo === 'intermedio', reload: () => load() });
-const STOCK = OviOrd.stock($('availBox'), post, () => load());
+const STOCK = OviOrd.stock($('availBox'), post, () => load(), { sposta: $('spostaBox'), mano: $('manoBox') });
 
 async function load(){
   try{
@@ -235,7 +239,7 @@ function render(){
   const inter = D.ruolo === 'intermedio';
   $('title').textContent = 'Ciao ' + String(D.nome).split(' ')[0] + '!';
   $('badge').textContent = inter ? 'Uova, costi e grafico' : 'Carico uova';
-  STOCK.update(D); $('availBox').hidden = false; split();
+  STOCK.update(D); $('availBox').hidden = false; $('manoBox').hidden = false; $('spostaBox').hidden = false; split();
   WA.update(D);
   $('loadCard').hidden = false;
   $('lTitle').textContent = inter ? '📋 Storico carichi (di tutti)' : '📋 I tuoi carichi';
