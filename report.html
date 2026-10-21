@@ -39,7 +39,9 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand-2
 .login .lrow{display:flex;gap:8px}
 .login .lb2{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px}
 .login #code{width:100%;font-size:1.3rem;letter-spacing:.2em;text-align:center}
-.login .lnk{border:0;background:none;padding:0;margin-top:6px;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.85rem}
+.login .lnk{border:0;background:none;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.85rem;justify-self:start;text-align:left}
+#useRec{margin-top:6px}
+.login #rf{display:grid;gap:10px}
 .login .rem{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
 .sec{display:grid;gap:4px}
 .sec summary{cursor:pointer;font-weight:600}
@@ -177,6 +179,17 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <input id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="11">
         <button type="button" class="lnk" id="useRec">Non hai il telefono? Usa un codice di emergenza</button></div>
       <label class="rem"><input type="checkbox" id="remember"> Ricorda questo dispositivo per 30 giorni</label>
+      <button type="button" class="lnk" id="forgot">Password dimenticata?</button>
+    </form>
+    <form id="rf" hidden>
+      <b>Recupera la password</b>
+      <small class="hint">Ti servono un codice di emergenza (quelli da 10 caratteri che hai salvato quando hai attivato la verifica in due passaggi) e il codice a 6 cifre dell'app.</small>
+      <input name="recovery" autocapitalize="characters" spellcheck="false" placeholder="Codice di emergenza (es. ABCDE-FGHJK)" autocomplete="off" maxlength="14" required>
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="Codice a 6 cifre dall'app" maxlength="6" required>
+      <input name="n1" type="password" placeholder="Nuova password (almeno 10 caratteri)" autocomplete="new-password" minlength="10" required>
+      <input name="n2" type="password" placeholder="Ripeti la nuova password" autocomplete="new-password" minlength="10" required>
+      <div class="lrow"><button class="btn">Imposta la nuova password</button></div>
+      <button type="button" class="lnk" id="back">← Torna all'accesso</button>
     </form>
     <p class="err" id="lerr" hidden></p>
   </section>
@@ -389,6 +402,22 @@ $('lf').onsubmit = async e => {
 /* codice di emergenza: tastiera con le lettere (quella numerica del telefono non le ha) */
 $('useRec').onclick = () => { const c = $('code'); c.inputMode = 'text'; c.autocomplete = 'off'; c.setAttribute('autocapitalize', 'characters'); c.placeholder = 'ABCDE-FGHJK'; c.maxLength = 14; c.style.letterSpacing = '.08em';
   $('code').previousElementSibling.textContent = 'Codice di emergenza (10 caratteri, ognuno vale una volta)'; $('useRec').hidden = true; c.value = ''; c.blur(); setTimeout(() => c.focus(), 50); };
+$('forgot').onclick = () => { $('lf').hidden = true; $('rf').hidden = false; $('lerr').hidden = true; $('rf').recovery.focus(); };
+$('back').onclick = () => { $('rf').hidden = true; $('lf').hidden = false; $('lerr').hidden = true; };
+$('rf').onsubmit = async e => {
+  e.preventDefault(); const f = e.target; $('lerr').hidden = true;
+  const err = t => { $('lerr').hidden = false; $('lerr').textContent = t; };
+  if (f.n1.value !== f.n2.value) return err('Le due password non sono uguali');
+  const btn = f.querySelector('.btn'); btn.disabled = true;
+  try{
+    const j = await fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'pwReset',recovery:f.recovery.value,code:f.code.value,new:f.n1.value,remember:$('remember').checked})}).then(r=>r.json());
+    if (!j.ok) throw new Error(j.error||'Errore');
+    SES = j.s; store.set('ovs', SES, $('remember').checked); f.reset();
+    await load(); $('rf').hidden = true; $('lf').hidden = false; enter();
+    toast('Password cambiata ✓ Codici di emergenza rimasti: ' + j.left);
+  }catch(x){ err(x.message); }
+  finally{ btn.disabled = false; }
+};
 function enter(){ $('login').hidden = true; $('app').hidden = false; $('act').hidden = false; $('lerr').hidden = true; }
 $('logout').onclick = async () => { try{ await post({action:'logout'}); }catch(e){} store.set('ovs', null); location.reload(); };
 $('refresh').onclick = async () => { try{ await load(); toast('Aggiornato'); }catch(x){ toast(x.message); } };
