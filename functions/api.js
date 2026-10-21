@@ -205,6 +205,11 @@ async function useRecovery(db, code) {
   if (i < 0) return false;
   L.splice(i, 1); await setS(db, 'tfa_recovery', JSON.stringify(L)); return true;
 }
+/** Controlla un codice di emergenza senza consumarlo */
+async function hasRecovery(db, code) {
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/0/g, 'O').replace(/1/g, 'I').replace(/8/g, 'B'); if (c.length !== 10) return false;
+  return JSON.parse(await getS(db, 'tfa_recovery') || '[]').includes(await sha256(c));
+}
 async function checkSecond(db, code) {
   const sec = await getS(db, 'tfa_secret');
   if (!sec) return true;
@@ -257,6 +262,26 @@ async function login_(db, env, request, d) {
   const s = await newSession(db, !!d.remember);
   await telegram(env, db, '🔐 OviAmo – accesso al report' + (d.remember ? ' (dispositivo ricordato 30 giorni)' : '') + '.\nSe non sei stato tu, cambia subito la password.');
   return json({ ok: true, s, tfa });
+}
+
+/** Password dimenticata: servono un codice di emergenza E il codice a 6 cifre dell'app (tutti e due) */
+async function pwReset_(db, env, request, d) {
+  const lim = await limiter(db, env, request);
+  if (lim.locked()) return json({ ok: false, error: lim.blockedMsg() });
+  const sec = await getS(db, 'tfa_secret');
+  if (!sec) return json({ ok: false, error: 'Il recupero funziona solo con la verifica in due passaggi attiva.' });
+  const pw = String(d.new || '');
+  if (pw.length < 10) return json({ ok: false, error: 'La nuova password deve avere almeno 10 caratteri' });
+  const fail = async () => { await lim.fail(); return json({ ok: false, error: lim.locked() ? lim.blockedMsg() : 'Codice di emergenza o codice a 6 cifre non validi' }); };
+  if (!await hasRecovery(db, d.recovery)) return await fail();
+  if (!await checkTotp(db, sec, d.code)) return await fail();
+  if (!await useRecovery(db, d.recovery)) return await fail();
+  await lim.ok();
+  await setS(db, 'pw_hash', await hashPw(pw));
+  await db.prepare('DELETE FROM sessions').run();     // chiude l'accesso su tutti gli altri dispositivi
+  const left = JSON.parse(await getS(db, 'tfa_recovery') || '[]').length;
+  await telegram(env, db, '🔐 OviAmo – la password del report è stata reimpostata con un codice di emergenza (ne restano ' + left + ').\nSe non sei stato tu, avvisa subito chi gestisce il sito.');
+  return json({ ok: true, s: await newSession(db, !!d.remember), left });
 }
 
 async function security_(db, env, request, d) {
@@ -355,6 +380,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
     const d = JSON.parse(await request.text() || '{}');
     if (!d.action) return await order_(db, env, ctx, d);
     if (d.action === 'login') return await login_(db, env, request, d);
+    if (d.action === 'pwReset') return await pwReset_(db, env, request, d);
 
     const master = await isMaster(db, request, d);
     if (master) { const r = await security_(db, env, request, d); if (r) return r; }
