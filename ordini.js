@@ -74,6 +74,18 @@
 .oo-pl span{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .oo-pl button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px}
 .oo-badge{font:700 .7rem Inter,sans-serif;padding:1px 8px;border-radius:99px;background:color-mix(in srgb,var(--yolk) 45%,var(--card));color:#6b4a00;vertical-align:2px}
+.oo-badge.mn{background:color-mix(in srgb,#8a5cf6 18%,var(--card));color:#4b2a9a}
+.os{display:grid;gap:10px}
+.os-n{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.os-n div{border-radius:12px;padding:10px 12px;background:var(--bg);display:grid;gap:2px}
+.os-n small{color:var(--muted);font-size:.78rem;line-height:1.25}
+.os-n b{font-family:Fraunces,Georgia,serif;font-size:1.9rem;line-height:1.05;color:var(--brand)}
+.os-n b.neg{color:var(--err)}
+.os form{display:grid;gap:8px;padding-top:4px}
+.os .rw{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.os input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
+.os input[type=number]{width:90px;text-align:center}
+.os .hint{color:var(--muted);font-size:.8rem}
 .oo-badge.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
 @media (max-width:420px){.oo-s{grid-template-columns:1fr}}`;
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -179,7 +191,7 @@
     const per = o.perIl ? `<b style="color:var(--brand)">per ${new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' })}</b> · ` : '';
     const mv = o.payments || [];
     return `<div class="oo ${done(o) ? 'done' : ''}" data-oid="${esc(o.id)}"${opt.del ? ' data-del="1"' : ''}>
-  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : o.stato === 'rifiutata' ? ' <span class="oo-badge rj">Rifiutata</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}
+  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : o.stato === 'rifiutata' ? ' <span class="oo-badge rj">Rifiutata</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}${o.mano ? ' <span class="oo-badge mn">🤝 A mano</span>' : ''}
     <div class="oo-w">${per}${dIt(o.data)}${qty ? ` · ${qty}` : ''}${o.telefono ? ` · <a href="tel:${esc(o.telefono)}">${esc(o.telefono)}</a>` : ''}</div></div>
     <div class="oo-e"><b>${eur(o.euro)}</b><small>${uTxt(o.uova)}</small></div></div>
   ${o.note ? `<div class="oo-nt">“${esc(o.note)}”</div>` : ''}
@@ -240,8 +252,8 @@
           try {
             if (v === 'rifiutata' && (o.stato || 'ok') === 'ok' && !confirm(`Rifiutare l'ordine di ${o.nome} ${o.cognome || ''} (${uTxt(o.uova)})? Le uova tornano disponibili.`)) { b.disabled = false; return; }
             let j = await post({ action: 'decide', id, value: v });
-            if (!j.ok && j.short && confirm(`Adesso ci sono solo ${j.available} uova disponibili e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
-            if (!j.ok) { if (!j.short) toast(j.error || 'Non salvato'); b.disabled = false; return; }
+            if (!j.ok && j.short && confirm(`Adesso ${j.where === 'riserva' ? 'in riserva' : 'in vendita'} ci sono solo ${j.available} uova e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
+            if (!j.ok) { toast(j.short ? j.error + (j.where === 'riserva' ? ' Sposta delle uova in riserva.' : '') : j.error || 'Non salvato'); b.disabled = false; return; }
             toast(v === 'ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : v === 'rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
             await reload();
             if (v === 'ok' || v === 'rifiutata') waPrompt({ ...o, stato: v });
@@ -289,5 +301,56 @@
       run({ action: 'move', id, uova: f.n, euro, metodo: f.m || '' }, 'Registrato');
     });
   }
-  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, waLabel, waPrompt, fill, TPL };
+  /** Riquadro scorte: uova in vendita e in riserva, "Sposta uova" e "Uova date a mano" */
+  function stock(el, post, reload) {
+    if (!document.getElementById('ooCss')) { const s = document.createElement('style'); s.id = 'ooCss'; s.textContent = css; document.head.appendChild(s); }
+    const toast = t => (window.toast ? window.toast(t) : alert(t));
+    let hm = '', open = {};
+    const draw = D => {
+      el.querySelectorAll('details[data-os]').forEach(d => open[d.dataset.os] = d.open);
+      const v = D.available || 0, r = D.riserva || 0;
+      el.innerHTML = `<div class="os oo" style="border:0;padding:0;background:none">
+      <div class="os-n"><div><small>🛒 In vendita<br>(si prenotano sul sito)</small><b>${v}</b></div>
+        <div><small>🧺 In riserva<br>(richieste a data, rubrica, a mano)</small><b class="${r < 0 ? 'neg' : ''}">${r}</b></div></div>
+      <details class="oo-adv" data-os="sp"${open.sp ? ' open' : ''}><summary>↔️ Sposta uova tra vendita e riserva ▾</summary><div>
+        <form data-of="shift"><div class="rw"><input name="n" type="number" inputmode="numeric" min="1" placeholder="Uova" aria-label="Uova da spostare">
+          <button type="button" class="ob" data-sv="riserva">Vendita → Riserva</button><button type="button" class="ob" data-sv="vendita">Riserva → Vendita</button></div></form></div></details>
+      <details class="oo-adv" data-os="mano"${open.mano ? ' open' : ''}><summary>🤝 Uova date a mano (dalla riserva) ▾</summary><div>
+        <form data-of="mano">
+          <div class="rw"><input name="nome" placeholder="A chi le hai date" maxlength="60" style="flex:1 1 160px" required><input name="uova" type="number" inputmode="numeric" min="1" placeholder="Uova" aria-label="Uova"></div>
+          <div class="rw"><input name="euro" inputmode="decimal" placeholder="Prezzo €" aria-label="Prezzo" style="width:110px"><span class="hint" data-pz></span></div>
+          <div class="rw"><span class="hint">Pagate?</span><div class="oo-m">
+            <button type="button" data-hm="" class="${hm === '' ? 'on' : ''}">Non ancora</button>
+            <button type="button" data-hm="contanti" class="${hm === 'contanti' ? 'on' : ''}">${MET.contanti}</button>
+            <button type="button" data-hm="satispay" class="${hm === 'satispay' ? 'on' : ''}">${MET.satispay}</button>
+            <button type="button" data-hm="paypal" class="${hm === 'paypal' ? 'on' : ''}">${MET.paypal}</button></div></div>
+          <div class="rw"><button class="ob pr">Registra</button><span class="hint">Risultano già consegnate. Le trovi tra le prenotazioni con 🤝 A mano.</span></div>
+        </form></div></details></div>`;
+    };
+    const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
+    el.addEventListener('input', e => { const f = e.target.form; if (f && f.dataset.of === 'mano') { const n = parseInt(f.uova.value, 10) || 0; f.querySelector('[data-pz]').textContent = n ? 'automatico: ' + eur(price(n)) : ''; f.euro.placeholder = n ? String(price(n)).replace('.', ',') + ' €' : 'Prezzo €'; } });
+    el.addEventListener('click', async e => {
+      const m = e.target.closest('[data-hm]');
+      if (m) { hm = m.dataset.hm; m.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === m)); return; }
+      const b = e.target.closest('[data-sv]'); if (!b) return;
+      const n = parseInt(b.form.n.value, 10) || 0; if (n < 1) return toast('Scrivi quante uova spostare');
+      b.disabled = true;
+      try { const j = await post({ action: 'shift', uova: n, verso: b.dataset.sv }); if (!j.ok) throw new Error(j.error); toast(`Spostate ${n} uova in ${b.dataset.sv}`); b.form.n.value = ''; await reload(); }
+      catch (x) { toast(x.message || 'Non salvato'); } finally { b.disabled = false; }
+    });
+    el.addEventListener('submit', async e => {
+      const f = e.target; if (f.dataset.of !== 'mano') { e.preventDefault(); return; }
+      e.preventDefault();
+      const n = parseInt(f.uova.value, 10) || 0, nome = f.nome.value.trim();
+      if (!nome) return toast('Scrivi a chi le hai date'); if (n < 1) return toast('Scrivi quante uova');
+      const btn = f.querySelector('.ob.pr'); btn.disabled = true;
+      try { const j = await post({ action: 'handOrder', nome, uova: n, euro: f.euro.value.trim(), metodo: hm });
+        if (!j.ok) throw new Error(j.short ? j.error + ' Sposta prima delle uova dalla vendita alla riserva.' : j.error);
+        toast(`${nome}: ${uTxt(n)} date a mano ✓`); f.reset(); hm = ''; f.querySelector('[data-pz]').textContent = ''; await reload(); }
+      catch (x) { toast(x.message || 'Non salvato'); } finally { btn.disabled = false; }
+    });
+    return { update: draw };
+  }
+
+  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, waLabel, waPrompt, fill, TPL, stock };
 })();
