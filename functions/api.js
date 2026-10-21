@@ -285,10 +285,10 @@ async function pwReset_(db, env, request, d) {
 }
 
 async function security_(db, env, request, d) {
-  if (!['secInfo', 'logout', 'logoutAll', 'pwChange', 'tfaStart', 'tfaConfirm', 'tfaOff'].includes(d.action)) return null;
+  if (!['secInfo', 'logout', 'logoutAll', 'pwChange', 'tfaStart', 'tfaConfirm', 'tfaOff', 'tfaNewCodes'].includes(d.action)) return null;
   const tfa = !!(await getS(db, 'tfa_secret'));
   const lim = await limiter(db, env, request);
-  if (['pwChange', 'tfaConfirm', 'tfaOff'].includes(d.action) && lim.locked()) return json({ ok: false, error: lim.blockedMsg() });
+  if (['pwChange', 'tfaConfirm', 'tfaOff', 'tfaNewCodes'].includes(d.action) && lim.locked()) return json({ ok: false, error: lim.blockedMsg() });
   const bad = async msg => { await lim.fail(); return json({ ok: false, error: lim.locked() ? lim.blockedMsg() : msg }); };
   switch (d.action) {
     case 'secInfo':
@@ -327,6 +327,15 @@ async function security_(db, env, request, d) {
       await setS(db, 'tfa_recovery', JSON.stringify(await Promise.all(codes.map(sha256))));
       await setS(db, 'tfa_secret', sec); await setS(db, 'tfa_pending', null);
       await telegram(env, db, '🔐 OviAmo – verifica in due passaggi attivata per il report.');
+      return json({ ok: true, recovery: codes.map(c => c.slice(0, 5) + '-' + c.slice(5)) });
+    }
+    case 'tfaNewCodes': {   // nuovi codici di emergenza: quelli vecchi smettono di valere
+      if (!tfa) return json({ ok: false, error: 'La verifica in due passaggi non è attiva' });
+      if (!await checkPw(db, env, d.password)) return await bad('Password errata');
+      if (!await checkSecond(db, d.code)) return await bad('Codice errato');
+      const codes = [...Array(8)].map(() => b32enc(rnd(7)).slice(0, 10));
+      await setS(db, 'tfa_recovery', JSON.stringify(await Promise.all(codes.map(sha256))));
+      await telegram(env, db, '🔐 OviAmo – generati nuovi codici di emergenza per il report (quelli vecchi non valgono più).');
       return json({ ok: true, recovery: codes.map(c => c.slice(0, 5) + '-' + c.slice(5)) });
     }
     case 'tfaOff': {
