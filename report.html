@@ -59,6 +59,17 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand-2
 .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
 @media (max-width:1100px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .stockw{margin-bottom:14px;max-width:640px}
+.kpi.hl .sub{color:inherit;opacity:.85}
+details.pren{border:2px solid var(--brand-2);border-radius:16px;overflow:hidden}
+details.pren>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 48px 14px 18px;position:relative;background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
+details.pren>summary::-webkit-details-marker{display:none}
+details.pren>summary h2{margin:0;font-size:1.25rem}
+details.pren>summary::after{content:'▾';position:absolute;right:18px;top:12px;font-size:1.4rem;color:var(--brand);transition:transform .2s}
+details.pren[open]>summary::after{transform:rotate(180deg)}
+details.pren>.in{padding:14px}
+.pb{display:flex;gap:6px;flex-wrap:wrap}
+.pb span{font:700 .78rem Inter,sans-serif;padding:3px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.pb .hot{background:var(--err);border-color:var(--err);color:#fff}
 @media (max-width:860px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:480px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{padding:12px}
@@ -234,6 +245,9 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
       <!-- PRENOTAZIONI -->
       <div data-p="pren">
         <div class="stockw" id="stockBox"></div>
+        <details class="pren" id="prenBox">
+        <summary><h2>🧺 Prenotazioni</h2><span class="pb" id="obadge"></span></summary>
+        <div class="in">
         <div class="bar">
           <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="att">Da confermare<span class="c" id="cAtt" style="margin-left:4px"></span></button></div>
           <select id="py" aria-label="Anno"></select>
@@ -257,6 +271,8 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
           <p class="hint">Le prenotazioni eliminate restano qui per 30 giorni, poi spariscono da sole. Le uova di una prenotazione nel cestino tornano disponibili.</p>
           <div class="tw"><table><thead><tr><th>Nome</th><th class="n">Uova</th><th class="n">€</th></tr></thead><tbody id="trb"></tbody></table></div>
         </details>
+        </div>
+        </details>
       </div>
 
       <!-- CALENDARIO -->
@@ -270,8 +286,8 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
       <!-- CARICHI -->
       <div data-p="car" hidden>
         <form class="form" id="fl">
-          <div><label for="lq">Uova</label><input id="lq" type="number" inputmode="numeric" min="1" placeholder="es. 30"></div>
-          <div><label for="lr">di cui in riserva</label><input id="lr" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+          <div><label for="lq">🛒 Uova per la vendita</label><input id="lq" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+          <div><label for="lr">🧺 Uova per la riserva</label><input id="lr" type="number" inputmode="numeric" min="0" placeholder="0"></div>
           <div><label for="ld">Giorno</label><input id="ld" type="date"></div>
           <div style="grid-column:span 2"><label for="ln">Note <span style="font-weight:400;color:var(--muted)">(es. rotte, consumate)</span></label><input id="ln" maxlength="200"></div>
           <div class="fb"><button class="btn">+ Aggiungi</button><button class="btn red" type="button" id="lminus">− Togli uova</button></div>
@@ -481,6 +497,9 @@ function renderOrders(){
   const V = ordersView();
   [...sel].forEach(id => { if(!D.orders.some(o=>o.id===id)) sel.delete(id); });
   const na = D.orders.filter(o=>o.stato==='attesa').length; $('cAtt').textContent = na || '';
+  { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
+      dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
+    $('obadge').innerHTML = [aperte ? `<span>${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot">${na} da confermare</span>` : '', dc ? `<span>🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span>💶 ${eur(di)} da incassare</span>` : ''].join(''); }
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
@@ -701,11 +720,10 @@ $('csv').onclick = () => {
 
 $('ld').value = today(); $('cd').value = today(); $('hd').value = today();
 async function saveLoad(sign){
-  const q = Math.abs(parseInt($('lq').value,10)||0); if(!q) return toast(sign<0 ? 'Scrivi quante uova togliere' : 'Scrivi quante uova');
-  if (sign<0 && !confirm(`Togliere ${q} uova dalle disponibili?`)) return;
-  const n = sign*q, r = Math.min(q, Math.max(0, parseInt($('lr').value,10)||0));
-  try{ const j = await post({action:'load', uova:n, riserva:sign*r, data:$('ld').value, note:$('ln').value.trim()}); if(!j.ok) throw new Error(j.error);
-    $('lq').value=''; $('lr').value=''; $('ln').value=''; await load(); toast(`${n>0?'Aggiunte':'Tolte'} ${q} uova`); }catch(x){ toast(x.message); } }
+  const v = Math.abs(parseInt($('lq').value,10)||0), r = Math.abs(parseInt($('lr').value,10)||0), q = v + r;
+  if(!q) return toast(sign<0 ? 'Scrivi quante uova togliere dalla vendita e/o dalla riserva' : 'Scrivi quante uova per la vendita e/o per la riserva');
+  try{ const j = await post({action:'load', uova:sign*q, riserva:sign*r, data:$('ld').value, note:$('ln').value.trim()}); if(!j.ok) throw new Error(j.error);
+    $('lq').value=''; $('lr').value=''; $('ln').value=''; await load(); toast(`${sign>0?'Aggiunte':'Tolte'} ${q} uova: ${v} ${sign>0?'in':'dalla'} vendita, ${r} ${sign>0?'in':'dalla'} riserva`); }catch(x){ toast(x.message); } }
 $('fl').onsubmit = e => { e.preventDefault(); saveLoad(1); };
 $('lminus').onclick = () => saveLoad(-1);
 $('fc').onsubmit = async e => { e.preventDefault();
@@ -745,6 +763,7 @@ document.addEventListener('click', async e => {
       if(!j.ok){ b.disabled = false; if(j.short) return; throw new Error(j.error); }
       if (d.decide==='ok' && pf==='att'){ pf=''; document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f==='')); }
       await load();
+      $('prenBox').open = true;
       const row = document.querySelector(`#ptb [data-sel="${CSS.escape(o.id)}"]`); if (row){ const tr=row.closest('tr'); tr.classList.add('flash'); tr.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>tr.classList.remove('flash'),2500); }
       toast(d.decide==='ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : d.decide==='rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
       if (d.decide!=='attesa') OviOrd.waPrompt({...o, stato:d.decide});
