@@ -39,6 +39,11 @@ input:focus{outline:2px solid var(--yolk);outline-offset:1px;border-color:transp
 .grid .big button{width:40px;height:40px}
 .big button{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--brand);font-size:1.4rem;cursor:pointer}
 .big input{text-align:center;font-size:1.3rem;font-weight:600}
+.rsv{display:flex;align-items:center;gap:10px}
+.rsv button{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--brand);font-size:1.3rem;cursor:pointer}
+.rsv input{text-align:center;font-size:1.2rem;font-weight:600}
+.split{margin:8px 0 0;font-size:.9rem;color:var(--muted)}.split b{color:var(--ink)}
+.dst{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--bg);color:var(--muted);white-space:nowrap}.dst.r{background:color-mix(in srgb,#8a5cf6 16%,var(--card));color:#4b2a9a}
 .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .quick button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:99px;padding:5px 12px;font:500 .85rem Inter,sans-serif;cursor:pointer}
 .btn{width:100%;padding:13px;border:0;border-radius:12px;background:linear-gradient(180deg,var(--brand-2),var(--brand));color:#fff;font:600 1rem Inter,sans-serif;cursor:pointer}
@@ -95,10 +100,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 <main class="wrap">
   <p class="card err" id="err" hidden></p>
 
-  <section class="card avail" id="availBox" hidden>
-    <div><small>Uova disponibili per le prenotazioni</small><br><b id="avail">0</b></div>
-    <svg width="44" height="56" viewBox="0 0 24 30" aria-hidden="true"><defs><radialGradient id="eg" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fffaf0"/><stop offset=".7" stop-color="#f3e3c4"/><stop offset="1" stop-color="#dcc39a"/></radialGradient></defs><ellipse cx="12" cy="16" rx="10.5" ry="13.5" fill="url(#eg)" stroke="#cfb184"/></svg>
-  </section>
+  <section class="card" id="availBox" hidden></section>
 
   <section class="card" id="ordCard" hidden>
     <h2>🧺 Prenotazioni</h2>
@@ -119,6 +121,11 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       <div class="field"><label for="lq">Quante uova?</label>
         <div class="big"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lq" type="number" inputmode="numeric" min="1" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div>
         <div class="quick"><button type="button" data-a="6">+6</button><button type="button" data-a="12">+12</button><button type="button" data-a="30">+30</button></div>
+      </div>
+      <div class="field"><label for="lr">Di queste, quante metti da parte in riserva?</label>
+        <div class="rsv"><button type="button" data-r="-1" aria-label="Meno">−</button><input id="lr" type="number" inputmode="numeric" min="0" value="0"><button type="button" data-r="1" aria-label="Più">+</button></div>
+        <div class="quick" id="lrq"><button type="button" data-rr="0">Tutte in vendita</button><button type="button" data-rr="h">Metà</button><button type="button" data-rr="a">Tutte in riserva</button></div>
+        <p class="split" id="lsplit"></p>
       </div>
       <div class="grid">
         <div class="field"><label for="ld">Giorno</label><input id="ld" type="date"></div>
@@ -202,6 +209,7 @@ let D = null, chart = null, allL = false, allC = false, allO = false, allOD = fa
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TK,...body})}).then(r=>r.json());
 const WA = OviAvvisa($('waCard'), post, { canOrder: () => D && D.ruolo === 'intermedio', reload: () => load() });
+const STOCK = OviOrd.stock($('availBox'), post, () => load());
 
 async function load(){
   try{
@@ -216,15 +224,17 @@ function render(){
   const inter = D.ruolo === 'intermedio';
   $('title').textContent = 'Ciao ' + String(D.nome).split(' ')[0] + '!';
   $('badge').textContent = inter ? 'Uova, costi e grafico' : 'Carico uova';
-  $('avail').textContent = D.available; $('availBox').hidden = false;
+  STOCK.update(D); $('availBox').hidden = false; split();
   WA.update(D);
   $('loadCard').hidden = false;
   $('lTitle').textContent = inter ? '📋 Storico carichi (di tutti)' : '📋 I tuoi carichi';
   $('histCard').hidden = false;
   const L = [...D.loads].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins));
   const lv = allL ? L : L.slice(0,8);
-  $('loads').innerHTML = lv.map(l=>`<div class="it"><span class="d">${dIt(l.data)}</span><span>${inter?esc(l.utente):''}${l.note?` <span class="w">${esc(l.note)}</span>`:''}</span><b>${l.uova} uova</b>${l.utente===D.nome?`<button class="x" data-del="load" data-id="${esc(l.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun carico.</p>';
-  $('lmore').hidden = allL || L.length <= 8;
+  const SH = (D.shifts||[]).filter(x=>inter || x.utente===D.nome).map(x=>({...x, sh:true}));
+  const LS = [...L, ...SH].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins)), lsv = allL ? LS : LS.slice(0,8);
+  $('loads').innerHTML = lsv.map(l=>`<div class="it"><span class="d">${dIt(l.data)}</span><span>${l.sh?`<span class="dst r">↔️ ${l.dest==='sposta-r'?'vendita → riserva':'riserva → vendita'}</span>`:`<span class="dst ${l.dest==='riserva'?'r':''}">${l.dest==='riserva'?'riserva':'vendita'}</span>`} ${inter?esc(l.utente):''}${l.note?` <span class="w">${esc(l.note)}</span>`:''}</span><b>${l.uova} uova</b>${l.utente===D.nome?`<button class="x" data-del="load" data-id="${esc(l.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun carico.</p>';
+  $('lmore').hidden = allL || LS.length <= 8;
   $('lCount').textContent = L.length === 1 ? '1 carico' : L.length + ' carichi';
   if (!inter) return;
   $('costCard').hidden = false; $('chartCard').hidden = false; $('ordCard').hidden = false; $('henCard').hidden = false;
@@ -240,18 +250,28 @@ function render(){
 
 // ----- carico uova -----
 $('ld').value = today(); $('cd').value = today(); $('hd').value = today();
-document.querySelector('.big').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = Math.max(0,(+$('lq').value||0) + +b.dataset.d); };
-document.querySelector('.quick').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = (+$('lq').value||0) + +b.dataset.a; };
+document.querySelector('.big').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = Math.max(0,(+$('lq').value||0) + +b.dataset.d); split(); };
+document.querySelector('.quick').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = (+$('lq').value||0) + +b.dataset.a; split(); };
+// quante in riserva (il resto va in vendita)
+function split(){
+  const n = Math.max(0, parseInt($('lq').value,10)||0); let r = Math.max(0, parseInt($('lr').value,10)||0);
+  if (r > n) { r = n; $('lr').value = r; }
+  $('lsplit').innerHTML = n ? `→ <b>${n-r}</b> in vendita sul sito, <b>${r}</b> in riserva` : '';
+}
+document.querySelector('.rsv').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lr').value = Math.max(0,(+$('lr').value||0) + +b.dataset.r); split(); };
+$('lrq').onclick = e => { const b=e.target.closest('button'); if(!b) return; const n = Math.max(0, parseInt($('lq').value,10)||0); $('lr').value = b.dataset.rr==='a' ? n : b.dataset.rr==='h' ? Math.floor(n/2) : 0; split(); };
+$('lq').oninput = split; $('lr').oninput = split;
 $('fl').onsubmit = async e => {
   e.preventDefault();
   const n = parseInt($('lq').value,10)||0;
   if (n<1) return toast('Scrivi quante uova');
   const b=$('lgo'); b.disabled=true;
   try{
-    const j = await post({action:'load', uova:n, data:$('ld').value, note:$('ln').value.trim()});
+    const r = Math.min(n, Math.max(0, parseInt($('lr').value,10)||0));
+    const j = await post({action:'load', uova:n, riserva:r, data:$('ld').value, note:$('ln').value.trim()});
     if(!j.ok) throw new Error(j.error);
-    toast(`Aggiunte ${n} uova. Disponibili: ${j.available}`);
-    $('lq').value=0; $('ln').value=''; await load();
+    toast(`Aggiunte ${n} uova: ${n-r} in vendita, ${r} in riserva`);
+    $('lq').value=0; $('lr').value=0; $('ln').value=''; await load();
   }catch(x){ toast(x.message||'Non salvato, riprova'); }
   finally{ b.disabled=false; }
 };
