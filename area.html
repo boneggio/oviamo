@@ -39,10 +39,21 @@ input:focus{outline:2px solid var(--yolk);outline-offset:1px;border-color:transp
 .grid .big button{width:40px;height:40px}
 .big button{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--brand);font-size:1.4rem;cursor:pointer}
 .big input{text-align:center;font-size:1.3rem;font-weight:600}
-.rsv{display:flex;align-items:center;gap:10px}
-.rsv button{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--brand);font-size:1.3rem;cursor:pointer}
-.rsv input{text-align:center;font-size:1.2rem;font-weight:600}
-.split{margin:8px 0 0;font-size:.9rem;color:var(--muted)}.split b{color:var(--ink)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.two{grid-template-columns:1fr}}
+.split{margin:-4px 0 12px;font-size:.9rem;color:var(--muted)}.split b{color:var(--ink)}
+.split:empty{display:none}
+details.pren{border:2px solid var(--brand-2);padding:0;overflow:hidden}
+details.pren>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 18px;background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
+details.pren>summary::-webkit-details-marker{display:none}
+details.pren>summary h2{margin:0;flex:1 1 auto;font-size:1.3rem}
+details.pren>summary{position:relative;padding-right:48px}
+details.pren>summary::after{content:'▾';font-size:1.4rem;color:var(--brand);transition:transform .2s;position:absolute;right:18px;top:14px}
+details.pren[open]>summary::after{transform:rotate(180deg)}
+details.pren>.in{padding:14px 18px 18px}
+.pb{display:flex;gap:6px;flex-wrap:wrap;width:100%}
+.pb span{font:700 .78rem Inter,sans-serif;padding:3px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.pb .hot{background:var(--err);border-color:var(--err);color:#fff}
 .dst{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--bg);color:var(--muted);white-space:nowrap}.dst.r{background:color-mix(in srgb,#8a5cf6 16%,var(--card));color:#4b2a9a}
 .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .quick button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:99px;padding:5px 12px;font:500 .85rem Inter,sans-serif;cursor:pointer}
@@ -54,9 +65,9 @@ input:focus{outline:2px solid var(--yolk);outline-offset:1px;border-color:transp
 .hist summary::-webkit-details-marker{display:none}
 .hist summary h2{margin:0;flex:1}
 .hist summary::after{content:'▾';color:var(--muted);font-size:1.1rem;transition:transform .2s}
-.hist[open] summary::after{transform:rotate(180deg)}
+.hist[open]>summary::after{transform:rotate(180deg)}
 .hist .n{color:var(--muted);font-size:.85rem}
-.hist[open] summary{margin-bottom:8px}
+.hist[open]>summary{margin-bottom:8px}
 .hist.sub{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .hist.sub h2{font-size:1rem}
 .it{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--bg);font-size:.92rem}
@@ -102,8 +113,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 
   <section class="card" id="availBox" hidden></section>
 
-  <section class="card" id="ordCard" hidden>
-    <h2>🧺 Prenotazioni</h2>
+  <details class="card pren" id="ordCard" hidden>
+    <summary><h2>🧺 Prenotazioni</h2><span class="pb" id="obadge"></span></summary>
+    <div class="in">
     <div class="osum" id="osum"></div>
     <div class="seg" id="of"><button data-f="np" class="on">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="">Tutte</button></div>
     <div class="list" id="ords"></div>
@@ -113,20 +125,19 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
       <div class="list" id="odone"></div>
       <button class="more" id="odmore" hidden>Mostra tutte</button>
     </details>
-  </section>
+    </div>
+  </details>
 
   <section class="card" id="loadCard" hidden>
     <h2>🥚 Carica le uova raccolte</h2>
     <form id="fl">
-      <div class="field"><label for="lq">Quante uova?</label>
-        <div class="big"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lq" type="number" inputmode="numeric" min="1" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div>
-        <div class="quick"><button type="button" data-a="6">+6</button><button type="button" data-a="12">+12</button><button type="button" data-a="30">+30</button></div>
+      <div class="two">
+        <div class="field"><label for="lq">🛒 Uova per la vendita</label>
+          <div class="big" data-for="lq"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lq" type="number" inputmode="numeric" min="0" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div></div>
+        <div class="field"><label for="lr">🧺 Uova per la riserva</label>
+          <div class="big" data-for="lr"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lr" type="number" inputmode="numeric" min="0" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div></div>
       </div>
-      <div class="field"><label for="lr">Di queste, quante metti da parte in riserva?</label>
-        <div class="rsv"><button type="button" data-r="-1" aria-label="Meno">−</button><input id="lr" type="number" inputmode="numeric" min="0" value="0"><button type="button" data-r="1" aria-label="Più">+</button></div>
-        <div class="quick" id="lrq"><button type="button" data-rr="0">Tutte in vendita</button><button type="button" data-rr="h">Metà</button><button type="button" data-rr="a">Tutte in riserva</button></div>
-        <p class="split" id="lsplit"></p>
-      </div>
+      <p class="split" id="lsplit"></p>
       <div class="grid">
         <div class="field"><label for="ld">Giorno</label><input id="ld" type="date"></div>
         <div class="field"><label for="ln">Note <span class="opt">(facoltative)</span></label><input id="ln" maxlength="200"></div>
@@ -250,27 +261,20 @@ function render(){
 
 // ----- carico uova -----
 $('ld').value = today(); $('cd').value = today(); $('hd').value = today();
-document.querySelector('.big').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = Math.max(0,(+$('lq').value||0) + +b.dataset.d); split(); };
-document.querySelector('.quick').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lq').value = (+$('lq').value||0) + +b.dataset.a; split(); };
-// quante in riserva (il resto va in vendita)
-function split(){
-  const n = Math.max(0, parseInt($('lq').value,10)||0); let r = Math.max(0, parseInt($('lr').value,10)||0);
-  if (r > n) { r = n; $('lr').value = r; }
-  $('lsplit').innerHTML = n ? `→ <b>${n-r}</b> in vendita sul sito, <b>${r}</b> in riserva` : '';
-}
-document.querySelector('.rsv').onclick = e => { const b=e.target.closest('button'); if(!b) return; $('lr').value = Math.max(0,(+$('lr').value||0) + +b.dataset.r); split(); };
-$('lrq').onclick = e => { const b=e.target.closest('button'); if(!b) return; const n = Math.max(0, parseInt($('lq').value,10)||0); $('lr').value = b.dataset.rr==='a' ? n : b.dataset.rr==='h' ? Math.floor(n/2) : 0; split(); };
+// due campi: uova per la vendita e uova per la riserva
+const nv = id => Math.max(0, parseInt($(id).value,10)||0);
+function split(){ const v = nv('lq'), r = nv('lr'); $('lsplit').innerHTML = v + r ? `Totale: <b>${v + r}</b> uova` : ''; }
+document.querySelectorAll('#fl .big').forEach(g => g.onclick = e => { const b=e.target.closest('button'); if(!b) return; const i=$(g.dataset.for); i.value = Math.max(0,(+i.value||0) + +b.dataset.d); split(); });
 $('lq').oninput = split; $('lr').oninput = split;
 $('fl').onsubmit = async e => {
   e.preventDefault();
-  const n = parseInt($('lq').value,10)||0;
-  if (n<1) return toast('Scrivi quante uova');
+  const v = nv('lq'), r = nv('lr'), n = v + r;
+  if (n<1) return toast('Scrivi quante uova per la vendita e/o per la riserva');
   const b=$('lgo'); b.disabled=true;
   try{
-    const r = Math.min(n, Math.max(0, parseInt($('lr').value,10)||0));
     const j = await post({action:'load', uova:n, riserva:r, data:$('ld').value, note:$('ln').value.trim()});
     if(!j.ok) throw new Error(j.error);
-    toast(`Aggiunte ${n} uova: ${n-r} in vendita, ${r} in riserva`);
+    toast(`Aggiunte ${n} uova: ${v} in vendita, ${r} in riserva`);
     $('lq').value=0; $('lr').value=0; $('ln').value=''; await load();
   }catch(x){ toast(x.message||'Non salvato, riprova'); }
   finally{ b.disabled=false; }
@@ -309,6 +313,8 @@ function renderOrders(){
   const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
   const OK = O.filter(o=>(o.stato||'ok')==='ok'), done = OviOrd.done;
   $('osum').innerHTML = `<span>Da incassare: <b>${eur(OK.reduce((t,o)=>t+OviOrd.rest(o),0))}</b></span><span>Uova da consegnare: <b>${OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)}</b></span>`;
+  const att = O.filter(o=>o.stato==='attesa').length, dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0), aperte = O.filter(o=>!done(o)).length;
+  $('obadge').innerHTML = [aperte ? `<span>${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', att ? `<span class="hot">${att} da confermare</span>` : '', dc ? `<span>🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span>💶 ${eur(di)} da incassare</span>` : ''].join('');
   const V = O.filter(o => !done(o) && (of==='np' ? OviOrd.rest(o) > 0.005 : of==='nc' ? OviOrd.cons(o) < o.uova : true)).sort((a,b)=>b.data.localeCompare(a.data));
   const vis = allO ? V : V.slice(0,15);
   $('ords').innerHTML = vis.map(o => OviOrd.row(o, { del: true })).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione da sistemare in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
