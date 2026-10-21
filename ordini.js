@@ -105,8 +105,8 @@
   };
   const fill = (t, o) => {
     const n = String(o.nome || '').trim().split(' ')[0];
-    const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uTxt(o.uova), euro: eur(o.euro), giorno: o.perIl ? giorno(o.perIl) : 'ora', satispay: '393 160 9967' };
-    return String(t || '').replace(/\{(nome|uova|euro|giorno|satispay)\}/gi, (m, k) => v[k.toLowerCase()]);
+    const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uTxt(o.uova), euro: eur(o.euro), giorno: o.perIl ? giorno(o.perIl) : 'ora', satispay: '393 160 9967', paypal: 'https://paypal.me/bartoccifrancesco/' + (+o.euro || 0).toFixed(2) + 'EUR' };
+    return String(t || '').replace(/\{(nome|uova|euro|giorno|satispay|paypal)\}/gi, (m, k) => v[k.toLowerCase()]);
   };
   const tplKind = o => o.stato === 'attesa' ? 'ricevuta' : o.stato === 'rifiutata' ? (o.perIl ? 'rifiuto' : 'rifiutoSubito') : o.perIl ? 'conferma' : 'normale';
   /** Nome del tasto WhatsApp: dice quale messaggio prepara */
