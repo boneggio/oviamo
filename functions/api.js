@@ -605,7 +605,7 @@ const remaining_ = async (db, id) => {
   return r ? { e: Math.max(0, Math.round(r.e * 100) / 100), u: Math.max(0, r.u) } : null;
 };
 const addMove_ = (db, id, data, uova, euro, metodo, u) => db.prepare('INSERT INTO payments (id, order_id, data, euro, uova, metodo, utente, ins) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-  .bind(newId('m'), id, data, euro, uova, euro > 0 ? (metodo === 'satispay' ? 'satispay' : 'contanti') : '', u.nome, now_()).run();
+  .bind(newId('m'), id, data, euro, uova, euro > 0 ? (['satispay', 'paypal'].includes(metodo) ? metodo : 'contanti') : '', u.nome, now_()).run();
 
 /** Dal report: tutto pagato / niente pagato, tutto consegnato / niente consegnato */
 async function flag_(db, d, u) {
@@ -637,7 +637,7 @@ async function move_(db, d, u) {
   if (!n && !(e > 0)) return json({ ok: false, error: 'Scrivi le uova consegnate o l\'importo pagato' });
   if (n > rest.u) return json({ ok: false, error: rest.u ? 'Restano da consegnare solo ' + rest.u + ' uova' : 'Le uova sono già tutte consegnate' });
   if (e < 0 || e > rest.e + 0.005) return json({ ok: false, error: rest.e > 0 ? 'Restano da pagare solo ' + rest.e.toFixed(2).replace('.', ',') + ' €' : 'È già tutto pagato' });
-  if (e > 0 && d.metodo !== 'contanti' && d.metodo !== 'satispay') return json({ ok: false, error: 'Scegli Contanti o Satispay' });
+  if (e > 0 && !['contanti', 'satispay', 'paypal'].includes(d.metodo)) return json({ ok: false, error: 'Scegli Contanti, Satispay o PayPal' });
   await addMove_(db, id, isDate(d.data) ? d.data : today_(), n, e, d.metodo, u);
   await sync_(db, id);
   return json({ ok: true });
