@@ -9,6 +9,8 @@
 
 const SITE = 'https://oviamo.boneggio.it';
 const SATISPAY_PHONE = '+393931609967';
+const PAYPAL_ME = 'https://paypal.me/bartoccifrancesco';   // link PayPal.Me per i pagamenti
+const paypalLink = euro => PAYPAL_ME + '/' + (+euro || 0).toFixed(2) + 'EUR';
 const TZ = 'Europe/Rome';
 const PRICE_1 = 0.5;     // un uovo
 const PRICE_6 = 3;       // confezione da 6
@@ -106,8 +108,8 @@ async function waFill(db, kind, nome, uova, euro, perIl) {
   const t = (await waTpl_(db))[kind] || '';
   const n = String(nome || '').trim().split(' ')[0], g = perIl ? new Date(perIl + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : 'ora';
   const v = { nome: n.charAt(0).toUpperCase() + n.slice(1), uova: uova === 1 ? '1 uovo' : uova + ' uova', euro: eurTxt(euro), giorno: g,
-    satispay: SATISPAY_PHONE.replace('+39', '').replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3') };
-  return t.replace(/\{(nome|uova|euro|giorno|satispay)\}/gi, (m, k) => v[k.toLowerCase()]);
+    satispay: SATISPAY_PHONE.replace('+39', '').replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3'), paypal: paypalLink(euro) };
+  return t.replace(/\{(nome|uova|euro|giorno|satispay|paypal)\}/gi, (m, k) => v[k.toLowerCase()]);
 }
 
 async function telegram(env, db, text, buttons) {
@@ -479,7 +481,7 @@ async function order_(db, env, ctx, d) {
     const l2 = await available_(db);
     return json({ ok: false, error: l2 > 0 ? 'Sono rimaste solo ' + l2 + ' uova disponibili.' : (s.msg || DEFAULT_MSG), closed: l2 <= 0 });
   }
-  const res = { ok: true, uova, euro, left: left - uova, satispay: SATISPAY_PHONE, perIl };
+  const res = { ok: true, uova, euro, left: left - uova, satispay: SATISPAY_PHONE, paypal: paypalLink(euro), perIl };
   if (rid) await db.prepare('INSERT OR REPLACE INTO idem (rid, res, ts) VALUES (?, ?, ?)').bind(rid, JSON.stringify(res), Date.now()).run();
 
   await telegram(env, db, '🥚 OviAmo – nuova prenotazione\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') + '\n' +
