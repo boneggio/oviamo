@@ -50,6 +50,24 @@
 .oo-sum{font-size:.86rem;padding:8px 10px;border-radius:10px;background:var(--card);border:1px dashed var(--line)}
 .oo-del{color:var(--err)!important;font-size:.8rem!important}
 .oo-lk{border:0;background:none;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.84rem}
+.oo .pp{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:#1f4fa0;color:#fff;font:800 italic .62rem Inter,sans-serif}
+.oo-k{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.oo-kd{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:600 .88rem Inter,sans-serif;cursor:pointer}
+.oo-kd .ck{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;border:2px solid var(--muted);background:var(--card);color:#fff;font-size:.8rem;line-height:1}
+.oo-kd.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
+.oo-kd.on .ck{background:var(--brand);border-color:var(--brand)}
+.oo-kp{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);font:600 .88rem Inter,sans-serif}
+.oo-kp.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
+.oo-kp button{display:inline-grid;place-items:center;width:38px;height:32px;border:1.5px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;padding:0}
+.oo-kp button.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 45%,transparent)}
+.oo-kp button .sp,.oo-kp button .pp{width:20px;height:20px;font-size:.75rem}
+.oo-kp svg{width:24px;height:16px}
+.oo-adv{border:1px solid var(--line);border-radius:12px;padding:0 10px}
+.oo-adv[open]{padding-bottom:10px}
+.oo-adv>summary{cursor:pointer;padding:9px 0;font:600 .86rem Inter,sans-serif;color:var(--muted);list-style:none}
+.oo-adv>summary::-webkit-details-marker{display:none}
+.oo-adv>div{display:grid;gap:10px}
+.oo-badge.rj{background:var(--bg);color:var(--muted)}
 .oo-hist summary{cursor:pointer;font-size:.82rem;color:var(--muted);list-style:none}
 .oo-hist summary::-webkit-details-marker{display:none}
 .oo-pl{display:grid;gap:4px;font-size:.82rem;margin-top:6px}
@@ -70,7 +88,11 @@
   const done = o => rest(o) <= 0.005 && left(o) <= 0;
   const unit = o => o.uova ? o.euro / o.uova : 0;
   const uTxt = n => n === 1 ? '1 uovo' : n + ' uova';
-  const MET = { contanti: '💶 Contanti', satispay: '<span class="sp">S</span> Satispay' };
+  const CASH = '<svg viewBox="0 0 24 16" aria-hidden="true"><rect x="1" y="1" width="22" height="14" rx="2.5" fill="#cfe8bf" stroke="#3f7a2a" stroke-width="1.6"/><circle cx="12" cy="8" r="3.4" fill="none" stroke="#3f7a2a" stroke-width="1.6"/><circle cx="5" cy="8" r="1.1" fill="#3f7a2a"/><circle cx="19" cy="8" r="1.1" fill="#3f7a2a"/></svg>';
+  const ICO = { contanti: CASH, satispay: '<span class="sp">S</span>', paypal: '<span class="pp">P</span>' };
+  const MNAME = { contanti: 'in contanti', satispay: 'con Satispay', paypal: 'con PayPal' };
+  const MET = { contanti: '💶 Contanti', satispay: '<span class="sp">S</span> Satispay', paypal: '<span class="pp">P</span> PayPal' };
+  const usedM = o => [...new Set((o.payments || []).filter(m => m.euro > 0).map(m => m.metodo))];
   const waNum = t => { let n = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, ''); if (/^3\d{8,9}$/.test(n)) n = '39' + n; return n.length >= 8 ? n : ''; };
   const giorno = d => new Date(d + 'T12:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
   /** Testi predefiniti (gli stessi del server); quelli modificati nella scheda 💬 Messaggi arrivano in window.OviTpl */
@@ -108,12 +130,13 @@
   const waText = o => { const k = tplKind(o), T = window.OviTpl || {}; return fill((T[k] && String(T[k]).trim()) ? T[k] : TPL[k], o); };
   const waConf = o => { const n = waNum(o.telefono); return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(waText(o)) : ''; };
   const forms = new Map();   // id → { mode, n, e, m, eTouched }
+  const advOpen = new Set();   // schede con "Gestione avanzata" aperta (resta aperta quando la scheda si ridisegna)
 
   function sumTxt(o, f) {
     const n = f.n, e = f.m ? r2(f.e) : 0, dl = left(o) - n, dr = r2(rest(o) - e);
     const parts = [];
     if (n) parts.push(`consegni <b>${uTxt(n)}</b>`);
-    if (e > 0) parts.push(`incassi <b>${eur(e)}</b>${f.m ? (f.m === 'satispay' ? ' con Satispay' : ' in contanti') : ''}`);
+    if (e > 0) parts.push(`incassi <b>${eur(e)}</b>${f.m ? (' ' + (MNAME[f.m] || 'in contanti')) : ''}`);
     if (!parts.length) return 'Scrivi le uova consegnate adesso o i soldi ricevuti adesso.';
     let after = [];
     after.push(dl > 0 ? `restano <b>${uTxt(dl)}</b> da consegnare` : 'uova tutte consegnate');
@@ -139,7 +162,8 @@
       <div class="oo-q"><span class="lb">${f.mode === 'dlv' ? 'Sono pagate?' : 'Pagato ora €'}</span>
         <div class="oo-m">${f.mode === 'dlv' ? `<button type="button" data-oa="fm" data-m="" class="${f.m === '' && f.answered ? 'on' : ''}">Non pagate</button>` : ''}
           <button type="button" data-oa="fm" data-m="contanti" class="${f.m === 'contanti' ? 'on' : ''}">${MET.contanti}</button>
-          <button type="button" data-oa="fm" data-m="satispay" class="${f.m === 'satispay' ? 'on' : ''}">${MET.satispay}</button></div></div>
+          <button type="button" data-oa="fm" data-m="satispay" class="${f.m === 'satispay' ? 'on' : ''}">${MET.satispay}</button>
+          <button type="button" data-oa="fm" data-m="paypal" class="${f.m === 'paypal' ? 'on' : ''}">${MET.paypal}</button></div></div>
       ${f.m ? `<div class="oo-q"><span class="lb">Importo €</span><input name="e" inputmode="decimal" value="${String(r2(f.e)).replace('.', ',')}" aria-label="Importo pagato ora"><small style="color:var(--muted)">su ${eur(R)} da pagare</small></div>` : ''}
       <div class="oo-sum">${sumTxt(o, f)}</div>
       <div class="oo-a"><button class="ob pr" ${f.mode === 'dlv' && !f.answered ? 'disabled title="Scegli se sono pagate"' : ''}>Registra</button><button type="button" class="ob" data-oa="fx">Annulla</button></div>
@@ -155,7 +179,7 @@
     const per = o.perIl ? `<b style="color:var(--brand)">per ${new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' })}</b> · ` : '';
     const mv = o.payments || [];
     return `<div class="oo ${done(o) ? 'done' : ''}" data-oid="${esc(o.id)}"${opt.del ? ' data-del="1"' : ''}>
-  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}
+  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : o.stato === 'rifiutata' ? ' <span class="oo-badge rj">Rifiutata</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}
     <div class="oo-w">${per}${dIt(o.data)}${qty ? ` · ${qty}` : ''}${o.telefono ? ` · <a href="tel:${esc(o.telefono)}">${esc(o.telefono)}</a>` : ''}</div></div>
     <div class="oo-e"><b>${eur(o.euro)}</b><small>${uTxt(o.uova)}</small></div></div>
   ${o.note ? `<div class="oo-nt">“${esc(o.note)}”</div>` : ''}
@@ -163,6 +187,11 @@
     <div class="oo-b"><span class="k">🥚 Uova</span><span class="v">consegnate <b>${c}</b> di ${o.uova}</span><span class="oo-bar"><i style="width:${o.uova ? c / o.uova * 100 : 100}%"></i></span>${L ? `<span class="r">da consegnare: ${uTxt(L)}</span>` : '<span class="ok">✓ tutte consegnate</span>'}</div>
     <div class="oo-b"><span class="k">💶 Soldi</span><span class="v">pagati <b>${eur(p)}</b> di ${eur(o.euro)}</span><span class="oo-bar"><i style="width:${o.euro ? Math.min(100, p / o.euro * 100) : 100}%"></i></span>${R > 0.005 ? `<span class="r">da pagare: ${eur(R)}</span>` : '<span class="ok">✓ tutto pagato</span>'}</div>
   </div>
+  ${o.stato !== 'rifiutata' ? `<div class="oo-k">
+    <button type="button" class="oo-kd ${L ? '' : 'on'}" data-oa="kdlv" aria-pressed="${!L}" title="${L ? 'Segna tutte le uova come consegnate' : 'Togli la consegna'}"><span class="ck">${L ? '' : '✓'}</span>Consegnati</button>
+    <div class="oo-kp ${R > 0.005 ? '' : 'on'}"><span>${R > 0.005 ? 'Pagamento' : '✓ Pagato'}</span>${['contanti', 'satispay', 'paypal'].map(m => `<button type="button" data-oa="kpay" data-m="${m}" class="${usedM(o).includes(m) ? 'on' : ''}" aria-pressed="${usedM(o).includes(m)}" title="${R > 0.005 ? 'Pagato ' + MNAME[m] : usedM(o).includes(m) ? 'Togli il pagamento' : 'Cambia: pagato ' + MNAME[m]}" aria-label="Pagato ${MNAME[m]}">${ICO[m]}</button>`).join('')}</div>
+  </div>` : ''}
+  <details class="oo-adv" data-adv${f || advOpen.has(o.id) ? ' open' : ''}><summary>⚙️ Gestione avanzata ▾</summary><div>
   ${o.stato === 'attesa' ? `<div class="oo-dec"><span>📅 Richiesta da confermare${o.perIl ? ' per ' + giorno(o.perIl) : ''}</span><div class="oo-a"><button type="button" class="ob pr" data-oa="dec" data-v="ok">✓ Conferma</button><button type="button" class="ob" data-oa="dec" data-v="rifiutata">✕ Rifiuta</button></div></div>`
     : o.stato === 'rifiutata' ? (o.perIl ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>`
       : `<div class="oo-dec rej"><span>Ordine rifiutato</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="ok">Annulla il rifiuto</button></div></div>`) : ''}
@@ -171,10 +200,12 @@
     ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a>` : ''}
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
-    ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button>` : ''}
+    ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button><button type="button" class="ob" data-oa="all" data-m="paypal">✓ Tutto, PayPal</button>` : ''}
   </div>` : ''}
-  ${opt.del || canRej(o) ? `<div class="oo-a">${canRej(o) ? `<button type="button" class="oo-lk oo-del" data-oa="dec" data-v="rifiutata">✕ Rifiuta ordine</button>` : ''}${opt.del ? `<button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button>` : ''}</div>` : ''}
-  ${mv.length ? `<details class="oo-hist"><summary>📋 Movimenti (${mv.length}) ▾</summary><div class="oo-pl">${mv.map(m => `<span>${dIt(m.data)} · ${m.uova ? '🥚 ' + uTxt(m.uova) + ' consegnate' : ''}${m.uova && m.euro > 0 ? ' · ' : ''}${m.euro > 0 ? '💶 ' + eur(m.euro) + (m.metodo === 'satispay' ? ' Satispay' : m.metodo === 'contanti' ? ' contanti' : '') : ''}<button type="button" data-oa="pdel" data-pid="${esc(m.id)}" aria-label="Annulla questo movimento">×</button></span>`).join('')}</div></details>` : ''}
+  ${canRej(o) ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="dec" data-v="rifiutata">✕ Rifiuta ordine</button></div>` : ''}
+  </div></details>
+  ${opt.del ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button></div>` : ''}
+  ${mv.length ? `<details class="oo-hist"><summary>📋 Movimenti (${mv.length}) ▾</summary><div class="oo-pl">${mv.map(m => `<span>${dIt(m.data)} · ${m.uova ? '🥚 ' + uTxt(m.uova) + ' consegnate' : ''}${m.uova && m.euro > 0 ? ' · ' : ''}${m.euro > 0 ? '💶 ' + eur(m.euro) + (m.metodo === 'satispay' ? ' Satispay' : m.metodo === 'paypal' ? ' PayPal' : m.metodo === 'contanti' ? ' contanti' : '') : ''}<button type="button" data-oa="pdel" data-pid="${esc(m.id)}" aria-label="Annulla questo movimento">×</button></span>`).join('')}</div></details>` : ''}
 </div>`;
   }
 
@@ -218,10 +249,27 @@
         })();
         return;
       }
+      if (a === 'kdlv') {   // "Consegnati": tutte le uova consegnate / togli la consegna
+        const on = left(o) > 0;
+        run({ action: 'flag', ids: [id], field: 'consegnato', value: on }, on ? `${o.nome}: uova consegnate ✓` : `${o.nome}: consegna tolta`);
+        return;
+      }
+      if (a === 'kpay') {   // icona del metodo: paga il resto così / tocca di nuovo per togliere / cambia metodo
+        const m = b.dataset.m, used = usedM(o);
+        if (rest(o) > 0.005) run({ action: 'flag', ids: [id], field: 'pagato', value: true, metodo: m }, `${o.nome}: pagato ${MNAME[m]} ✓`);
+        else if (used.length === 1 && used[0] === m) run({ action: 'flag', ids: [id], field: 'pagato', value: false }, `${o.nome}: pagamento tolto`);
+        else (async () => {
+          try { let j = await post({ action: 'flag', ids: [id], field: 'pagato', value: false }); if (!j.ok) throw new Error(j.error);
+            j = await post({ action: 'flag', ids: [id], field: 'pagato', value: true, metodo: m }); if (!j.ok) throw new Error(j.error);
+            toast(`${o.nome}: ora pagato ${MNAME[m]}`); await reload(); } catch (x) { toast(x.message || 'Non salvato, riprova'); b.disabled = false; }
+        })();
+        return;
+      }
       if (a === 'all') run({ action: 'move', id, uova: left(o), euro: rest(o), metodo: b.dataset.m }, `${o.nome}: consegnate e pagate`);
       else if (a === 'del') { if (confirm(`Eliminare la prenotazione di ${o.nome} ${o.cognome} (${uTxt(o.uova)})? Va nel cestino: le uova tornano disponibili e si può ripristinare dal report per 30 giorni.`)) run({ action: 'delOrders', ids: [id] }, 'Spostata nel cestino'); else b.disabled = false; }
       else if (a === 'pdel') { if (confirm('Annullare questo movimento?')) run({ action: 'payDel', pid: b.dataset.pid }, 'Movimento annullato'); else b.disabled = false; }
     });
+    el.addEventListener('toggle', e => { const d = e.target; if (!d.matches || !d.matches('details[data-adv]')) return; const id = d.closest('[data-oid]').dataset.oid; d.open ? advOpen.add(id) : advOpen.delete(id); }, true);
     el.addEventListener('input', e => {
       const fm = e.target.closest('[data-of]'); if (!fm) return;
       const id = fm.dataset.of, o = getOrder(id), f = forms.get(id); if (!o || !f) return;
