@@ -31,9 +31,15 @@ const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDa
 const dIt = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
 // uova impegnate = solo le prenotazioni confermate (le richieste "in attesa" o "rifiutate" non contano)
 // (le prenotazioni nel cestino non contano)
-const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '')";
+// due "mucchi" di uova: VENDITA (prenotabili sul sito) e RISERVA (richieste a data, rubrica, date a mano).
+// loads.dest: '' = vendita, 'riserva', 'sposta-r' (n uova dalla vendita alla riserva), 'sposta-v' (dalla riserva alla vendita)
+// orders.pool: '' = vendita, 'riserva'
+const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '' AND COALESCE(pool,'') <> 'riserva')";
+const BOOKED_R = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '' AND pool = 'riserva')";
+const LOADED_R = "(SELECT COALESCE(SUM(CASE dest WHEN 'riserva' THEN uova WHEN 'sposta-r' THEN uova WHEN 'sposta-v' THEN -uova ELSE 0 END),0) FROM loads)";
 const TRASH_DAYS = 30;   // dopo quanti giorni il cestino si svuota da solo
-const LOADED = '(SELECT COALESCE(SUM(uova),0) FROM loads)';
+const LOADED = "(SELECT COALESCE(SUM(CASE COALESCE(dest,'') WHEN '' THEN uova WHEN 'sposta-r' THEN -uova WHEN 'sposta-v' THEN uova ELSE 0 END),0) FROM loads)";
+const AV_R = `(${LOADED_R} - ${BOOKED_R})`;
 const REMIND_DAYS = 3;   // promemoria Telegram per le richieste da confermare
 const WA_MSG = 'Ciao, se vuoi ci sono {uova} uova disponibili';   // testo predefinito "Avvisa su WhatsApp"
 /** Messaggi WhatsApp per i clienti (modificabili nel report, scheda 💬 Messaggi) */
@@ -57,7 +63,7 @@ const orders_ = async db => {
       id: r.id, data: r.data, nome: r.nome, cognome: r.cognome, telefono: r.telefono || '',
       q1: r.q1, q6: r.q6, uova: r.uova, euro: r.euro, note: r.note || '',
       pagato: !!r.pagato, consegnato: !!r.consegnato, dataPag: r.data_pag || '', metodo: r.metodo || '', perIl: r.per_il || '',
-      stato: r.stato || 'ok', contatto: r.contatto || '', eliminato: r.eliminato || '',
+      stato: r.stato || 'ok', contatto: r.contatto || '', eliminato: r.eliminato || '', pool: r.pool || '', mano: !!r.mano,
       payments, paid: Math.round(payments.reduce((t, p) => t + p.euro, 0) * 100) / 100,
       consegnate: Math.min(r.uova, payments.reduce((t, p) => t + p.uova, 0))
     };
@@ -65,7 +71,8 @@ const orders_ = async db => {
 };
 /** vendite per il grafico: un elemento per ogni pagamento (uova in proporzione all'importo) */
 const sales_ = ord => ord.filter(o => !o.eliminato).flatMap(o => o.payments.filter(p => p.euro > 0).map(p => ({ data: p.data, euro: p.euro, uova: o.euro ? Math.round(o.uova * p.euro / o.euro * 10) / 10 : 0 })));
-const loads_ = db => all(db, 'SELECT id, data, uova, utente, note, ins FROM loads ORDER BY data, ins');
+const loads_ = db => all(db, "SELECT id, data, uova, utente, note, ins, COALESCE(dest,'') AS dest FROM loads WHERE COALESCE(dest,'') NOT LIKE 'sposta%' ORDER BY data, ins");
+const shifts_ = db => all(db, "SELECT id, data, uova, utente, ins, dest FROM loads WHERE dest LIKE 'sposta%' ORDER BY data, ins");
 const costs_ = db => all(db, 'SELECT id, data, descr, euro, utente, ins, qta, unita FROM costs ORDER BY data, ins');
 const hens_ = db => all(db, 'SELECT id, data, tot, prod, utente, note, ins FROM hens ORDER BY data, ins');
 const users_ = db => all(db, 'SELECT tk, nome, ruolo, creato FROM users ORDER BY creato, nome');
@@ -76,6 +83,11 @@ async function userByToken(db, tk) {
 async function available_(db) {
   const r = await db.prepare(`SELECT ${LOADED} - ${BOOKED} AS n`).first();
   return Math.max(0, r.n || 0);
+}
+/** Uova in riserva ancora libere (per richieste a data, rubrica e uova date a mano) */
+async function riserva_(db) {
+  const r = await db.prepare(`SELECT ${AV_R} AS n`).first();
+  return r.n || 0;
 }
 async function settings_(db) {
   const s = {}; (await all(db, 'SELECT k, v FROM settings')).forEach(r => s[r.k] = r.v);
@@ -140,7 +152,7 @@ async function remind_(env, db) {
   if (!L.length) return;
   const ok = await telegram(env, db, '⏰ OviAmo – richieste da confermare\n' +
     L.map(o => '• ' + dIt(o.per_il) + ': ' + o.nome + ' ' + o.cognome + ', ' + o.uova + ' uova' + (o.telefono ? ' (' + o.telefono + ')' : '')).join('\n') +
-    '\nUova disponibili ora: ' + await available_(db) + '\n' + SITE + '/report.html');
+    '\nUova in riserva ora: ' + await riserva_(db) + '\n' + SITE + '/report.html');
   if (ok) await db.prepare(`UPDATE orders SET ricordato = 1 WHERE id IN (${L.map(() => '?').join(',')})`).bind(...L.map(o => o.id)).run();
 }
 
@@ -362,13 +374,13 @@ export async function onRequestGet({ request, env, waitUntil }) {
   }
   if (p.action === 'report') {
     if (!await isMaster(db, request, null)) return json({ ok: false, auth: true, error: 'Accesso scaduto: entra di nuovo' });
-    const [orders, loads, costs, hens, users, settings, available, contacts, waMsg, waTpl] = await Promise.all([orders_(db), loads_(db), costs_(db), hens_(db), users_(db), settings_(db), available_(db), contacts_(db), waMsg_(db), waTpl_(db)]);
-    return json({ ok: true, orders, loads, costs, hens, users, settings, available, contacts, waMsg, waTpl, waTplDef: WA_TPL, sales: sales_(orders) });
+    const [orders, loads, costs, hens, users, settings, available, contacts, waMsg, waTpl, riserva, shifts] = await Promise.all([orders_(db), loads_(db), costs_(db), hens_(db), users_(db), settings_(db), available_(db), contacts_(db), waMsg_(db), waTpl_(db), riserva_(db), shifts_(db)]);
+    return json({ ok: true, orders, loads, costs, hens, users, settings, available, riserva, shifts, contacts, waMsg, waTpl, waTplDef: WA_TPL, sales: sales_(orders) });
   }
   if (p.action === 'area') {
     const u = await userByToken(db, p.t);
     if (!u) return json({ ok: false, error: 'Link non valido. Chiedi un nuovo link a chi gestisce OviAmo.' });
-    const out = { ok: true, nome: u.nome, ruolo: u.ruolo, available: await available_(db), contacts: await contacts_(db), waMsg: await waMsg_(db), waTpl: await waTpl_(db) };
+    const out = { ok: true, nome: u.nome, ruolo: u.ruolo, available: await available_(db), riserva: await riserva_(db), shifts: await shifts_(db), contacts: await contacts_(db), waMsg: await waMsg_(db), waTpl: await waTpl_(db) };
     const loads = await loads_(db);
     if (u.ruolo === 'intermedio') {
       out.loads = loads; out.costs = await costs_(db); out.hens = await hens_(db);
@@ -401,6 +413,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
     switch (d.action) {
       case 'load': return await addLoad_(db, d, u);
+      case 'shift': return await shift_(db, d, u);
+      case 'handOrder': return await handOrder_(db, d, u);
       case 'cost': if (!canCost) break; return await addCost_(db, d, u);
       case 'delLoad': return await delEntry_(db, 'loads', d.id, u, master);
       case 'delCost': if (!canCost) break; return await delEntry_(db, 'costs', d.id, u, master);
@@ -509,14 +523,14 @@ async function request_(db, env, d, rid) {
   const uova = q1 + 6 * q6;
   if (!uova) return json({ ok: false, error: 'Scegli almeno un uovo' });
   const euro = Math.round((q1 * PRICE_1 + q6 * PRICE_6) * 100) / 100;
-  await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, stato) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'attesa')`)
+  await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, stato, pool) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'attesa', 'riserva')`)
     .bind(newId('p'), now_(), nome, cognome, telefono, q1, q6, uova, euro, note, d.perIl).run();
   const res = { ok: true, richiesta: true, uova, euro, perIl: d.perIl };
   if (rid) await db.prepare('INSERT OR REPLACE INTO idem (rid, res, ts) VALUES (?, ?, ?)').bind(rid, JSON.stringify(res), Date.now()).run();
   const ack = await waFill(db, 'ricevuta', nome, uova, euro, d.perIl);
   await telegram(env, db, '📅 OviAmo – nuova richiesta da confermare\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') +
     ' per ' + dIt(d.perIl) + '\nTel: ' + telefono + (note ? '\nNote: ' + note : '') +
-    '\nUova disponibili ora: ' + await available_(db),
+    '\nUova in riserva ora: ' + await riserva_(db),
     [...(waNum(telefono) ? [[{ text: '💬 Rispondi su WhatsApp (ricevuta)', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(ack) }]] : []),
      [{ text: '📋 Apri il report per confermare', url: SITE + '/report.html' }]]);
   return json(res);
@@ -529,14 +543,16 @@ async function decide_(db, d) {
   let r;
   if (v === 'ok') {
     // d.force: conferma anche se adesso le uova non bastano (le prossime caricate andranno prima a questa)
-    r = d.force ? await db.prepare(`UPDATE orders SET stato = 'ok' WHERE id = ? AND stato <> 'ok'`).bind(id).run()
-      : await db.prepare(`UPDATE orders SET stato = 'ok' WHERE id = ? AND stato <> 'ok' AND ${LOADED} - ${BOOKED} >= uova`).bind(id).run();
+    // le richieste con data prendono le uova dalla RISERVA, gli ordini "subito" dalla vendita
+    const SET = `stato = 'ok', pool = CASE WHEN COALESCE(per_il,'') <> '' THEN 'riserva' ELSE COALESCE(pool,'') END`;
+    r = d.force ? await db.prepare(`UPDATE orders SET ${SET} WHERE id = ? AND stato <> 'ok'`).bind(id).run()
+      : await db.prepare(`UPDATE orders SET ${SET} WHERE id = ? AND stato <> 'ok' AND (CASE WHEN COALESCE(per_il,'') <> '' THEN ${AV_R} ELSE ${LOADED} - ${BOOKED} END) >= uova`).bind(id).run();
     if (!r.meta.changes) {
-      const o = await db.prepare('SELECT uova, stato FROM orders WHERE id = ?').bind(id).first();
+      const o = await db.prepare('SELECT uova, stato, per_il FROM orders WHERE id = ?').bind(id).first();
       if (!o) return json({ ok: false, error: 'Richiesta non trovata' });
       if (o.stato === 'ok') return json({ ok: true, already: true });
-      const av = await available_(db);
-      return json({ ok: false, short: true, need: o.uova, available: av, error: 'Uova insufficienti: ne servono ' + o.uova + ', disponibili ' + av + '.' });
+      const ris = !!o.per_il, av = ris ? Math.max(0, await riserva_(db)) : await available_(db);
+      return json({ ok: false, short: true, need: o.uova, available: av, where: ris ? 'riserva' : 'vendita', error: 'Uova insufficienti ' + (ris ? 'in riserva' : 'in vendita') + ': ne servono ' + o.uova + ', ci sono ' + av + '.' });
     }
   } else {
     r = await db.prepare('UPDATE orders SET stato = ? WHERE id = ?').bind(v, id).run();
@@ -545,14 +561,51 @@ async function decide_(db, d) {
   return json({ ok: true, available: await available_(db) });
 }
 
+/** Carico: d.uova in totale, di cui d.riserva messe da parte (il resto va in vendita). d.dest='riserva' = tutto in riserva */
 async function addLoad_(db, d, u) {
   const n = parseInt(d.uova, 10) || 0;
   if (!n || (n < 0 && u.ruolo !== 'master')) return json({ ok: false, error: 'Numero di uova non valido' });
   if (Math.abs(n) > 5000) return json({ ok: false, error: 'Numero troppo grande' });
-  const data = isDate(d.data) ? d.data : today_();
-  await db.prepare('INSERT INTO loads (id, data, uova, utente, note, ins) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(newId('c'), data, n, u.nome, clean(d.note, 200), now_()).run();
-  return json({ ok: true, available: await available_(db) });
+  const data = isDate(d.data) ? d.data : today_(), note = clean(d.note, 200);
+  let ris = d.dest === 'riserva' ? n : Math.max(0, parseInt(d.riserva, 10) || 0);
+  if (n > 0 && ris > n) return json({ ok: false, error: 'In riserva non puoi mettere più uova di quelle caricate' });
+  if (n < 0) ris = d.dest === 'riserva' ? n : -Math.min(-n, Math.abs(parseInt(d.riserva, 10) || 0));
+  const ven = n - ris;
+  const ins = (q, dest) => db.prepare('INSERT INTO loads (id, data, uova, utente, note, ins, dest) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(newId('c'), data, q, u.nome, note, now_(), dest).run();
+  if (ven) await ins(ven, '');
+  if (ris) await ins(ris, 'riserva');
+  return json({ ok: true, available: await available_(db), riserva: await riserva_(db), vendita: ven, inRiserva: ris });
+}
+
+/** Sposta uova tra vendita e riserva (d.verso = 'riserva' oppure 'vendita') */
+async function shift_(db, d, u) {
+  const n = parseInt(d.uova, 10) || 0, verso = d.verso === 'vendita' ? 'vendita' : 'riserva';
+  if (n < 1 || n > 5000) return json({ ok: false, error: 'Scrivi quante uova spostare' });
+  const av = verso === 'riserva' ? await available_(db) : Math.max(0, await riserva_(db));
+  if (n > av) return json({ ok: false, error: verso === 'riserva' ? 'In vendita ci sono solo ' + av + ' uova libere' : 'In riserva ci sono solo ' + av + ' uova libere' });
+  await db.prepare('INSERT INTO loads (id, data, uova, utente, note, ins, dest) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(newId('s'), today_(), n, u.nome, '', now_(), verso === 'riserva' ? 'sposta-r' : 'sposta-v').run();
+  return json({ ok: true, available: await available_(db), riserva: await riserva_(db) });
+}
+
+/** Uova date a mano senza prenotazione: prese dalla riserva, già consegnate; pagamento subito o dopo */
+async function handOrder_(db, d, u) {
+  const nome = clean(d.nome, 60);
+  if (!nome) return json({ ok: false, error: 'Scrivi a chi le hai date' });
+  const uova = Math.max(0, Math.min(1000, parseInt(d.uova, 10) || 0));
+  if (!uova) return json({ ok: false, error: 'Scrivi quante uova' });
+  const q6 = Math.floor(uova / 6), q1 = uova % 6;
+  const euro = d.euro === '' || d.euro == null ? q1 * PRICE_1 + q6 * PRICE_6 : Math.round((parseFloat(String(d.euro).replace(',', '.')) || 0) * 100) / 100;
+  if (!(euro >= 0) || euro > 10000) return json({ ok: false, error: 'Importo non valido' });
+  const metodo = ['contanti', 'satispay', 'paypal'].includes(d.metodo) ? d.metodo : '';
+  const day = isDate(d.data) ? d.data : today_(), id = newId('p');
+  const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, pool, mano)
+    SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, '', 'riserva', 1 WHERE ${d.force ? '1' : AV_R + ' >= ?'}`)
+    .bind(...[id, day + now_().slice(10), nome, clean(d.telefono, 30), q1, q6, uova, euro, clean(d.note, 500)].concat(d.force ? [] : [uova])).run();
+  if (!r.meta.changes) { const av = Math.max(0, await riserva_(db)); return json({ ok: false, short: true, need: uova, available: av, error: 'In riserva ci sono solo ' + av + ' uova.' }); }
+  await addMove_(db, id, day, uova, metodo ? euro : 0, metodo, u);
+  await sync_(db, id);
+  return json({ ok: true, available: await available_(db), riserva: await riserva_(db) });
 }
 
 async function addCost_(db, d, u) {
@@ -662,10 +715,10 @@ async function contactOrder_(db, d) {
   const euro = d.euro === '' || d.euro == null ? q1 * PRICE_1 + q6 * PRICE_6 : Math.round((parseFloat(String(d.euro).replace(',', '.')) || 0) * 100) / 100;
   if (!(euro >= 0) || euro > 10000) return json({ ok: false, error: 'Importo non valido' });
   const data = (isDate(d.data) ? d.data : today_()) + now_().slice(10);
-  const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, contatto)
-    SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, '', ? WHERE ${LOADED} - ${BOOKED} >= ?`)
+  const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, contatto, pool)
+    SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, '', ?, 'riserva' WHERE ${AV_R} >= ?`)
     .bind(newId('p'), data, c.nome, c.tel, q1, q6, uova, euro, clean(d.note, 500), c.id, uova).run();
-  if (!r.meta.changes) return json({ ok: false, error: 'Uova insufficienti: disponibili ' + await available_(db) + '. Carica prima le uova.' });
+  if (!r.meta.changes) return json({ ok: false, error: 'Uova insufficienti in riserva: ce ne sono ' + Math.max(0, await riserva_(db)) + '. Caricane in riserva o spostale dalla vendita.' });
   return json({ ok: true, available: await available_(db) });
 }
 
