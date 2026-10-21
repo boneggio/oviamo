@@ -104,6 +104,8 @@ input:focus,textarea:focus{outline:2px solid var(--yolk);outline-offset:1px;bord
 .pay p{margin:0 0 12px;font-size:.92rem}
 .num{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .num b{flex:1 0 auto;white-space:nowrap;font-size:1.25rem;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ppb{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:4px;padding:12px 14px;border-radius:12px;background:#1f4fa0;color:#fff;font:700 .95rem Inter,sans-serif;text-decoration:none}
+.pay h3 .p{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#1f4fa0;color:#fff;font:800 italic .8rem Inter,sans-serif}
 .num button{flex:none;border:0;background:#e8433d;color:#fff;border-radius:10px;padding:10px 14px;font:600 .9rem Inter,sans-serif;cursor:pointer}
 .link{background:none;border:0;color:var(--brand);font:inherit;text-decoration:underline;cursor:pointer}
 footer{text-align:center;margin-top:28px}
@@ -223,6 +225,11 @@ footer{text-align:center;margin-top:28px}
       <p>Apri Satispay e invia <b id="pe"></b> a questo numero:</p>
       <div class="num"><b id="pn"></b><button type="button" id="pcopy">Copia numero</button></div>
     </div>
+    <div class="pay" id="ppay" hidden>
+      <h3><span class="p">P</span>Oppure paga con PayPal</h3>
+      <p>Si apre PayPal con <b id="ppe"></b> già scritti: controlla e conferma.</p>
+      <a class="ppb" id="ppl" href="#" target="_blank" rel="noopener">Paga con PayPal</a>
+    </div>
     <button class="link" id="again">Fai un'altra prenotazione</button>
   </div>
 
@@ -318,6 +325,8 @@ $('f').addEventListener('submit', async e => {
     $('dintro').textContent = j.richiesta ? 'Abbiamo ricevuto la tua richiesta di ' : 'Abbiamo ricevuto la tua prenotazione di ';
     $('dpi').innerHTML = j.richiesta ? '<br>per <b>' + giorno + '</b>.<br><br>⚠️ <b>Non è ancora confermata:</b> ti scriviamo su WhatsApp qualche giorno prima per dirti se le uova ci sono.' : '';
     $('pay').hidden = !j.satispay || !!j.richiesta;
+    $('ppay').hidden = !j.paypal || !!j.richiesta;
+    if (j.paypal) { $('ppl').href = j.paypal; $('ppe').textContent = eur(j.euro); }
     if (j.satispay) { $('pn').textContent = String(j.satispay).replace(/^(\+\d{2})?(\d{3})(\d{3})(\d+)$/,(m,p,x,y,z)=>(p?p+' ':'')+x+' '+y+' '+z); $('pn').dataset.n = j.satispay; $('pe').textContent = eur(j.euro); }
     $('f').style.display='none'; document.querySelector('.welcome').style.display='none';
     $('done').style.display='block'; window.scrollTo({top:0,behavior:'smooth'});
