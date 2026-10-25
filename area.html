@@ -317,7 +317,7 @@ function renderOrders(){
   const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
   const OK = O.filter(o=>(o.stato||'ok')==='ok'), done = OviOrd.done;
   $('osum').innerHTML = `<span>Da incassare: <b>${eur(OK.reduce((t,o)=>t+OviOrd.rest(o),0))}</b></span><span>Uova da consegnare: <b>${OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)}</b></span>`;
-  const att = O.filter(o=>o.stato==='attesa').length, dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0), aperte = O.filter(o=>!done(o)).length;
+  const att = O.filter(o=>o.stato==='attesa' && !done(o)).length, dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0), aperte = O.filter(o=>!done(o)).length;
   $('obadge').innerHTML = [aperte ? `<span>${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', att ? `<span class="hot">${att} da confermare</span>` : '', dc ? `<span>🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span>💶 ${eur(di)} da incassare</span>` : ''].join('');
   const V = O.filter(o => !done(o) && (of==='np' ? OviOrd.rest(o) > 0.005 : of==='nc' ? OviOrd.cons(o) < o.uova : true)).sort((a,b)=>b.data.localeCompare(a.data));
   const vis = allO ? V : V.slice(0,15);
