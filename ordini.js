@@ -59,7 +59,12 @@
 .oo-kp{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);font:600 .88rem Inter,sans-serif}
 .oo-kp.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
 .oo-kp button{display:inline-grid;place-items:center;width:38px;height:32px;border:1.5px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;padding:0}
-.oo-kp button.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 45%,transparent)}
+.oo-kp button{position:relative;transition:transform .15s}
+.oo-kp button.on{border:2px solid var(--brand);background:var(--brand);transform:scale(1.1);box-shadow:0 2px 8px color-mix(in srgb,var(--brand) 45%,transparent)}
+.oo-kp button.on::after{content:'✓';position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:#fff;color:var(--brand);border:2px solid var(--brand);font:900 .68rem/14px Inter,sans-serif;text-align:center}
+.oo-kp.on button:not(.on){opacity:.3;filter:grayscale(1)}
+.oo-kp.on{border-width:2px;border-color:var(--brand);background:color-mix(in srgb,var(--brand-2) 22%,var(--card));color:var(--brand)}
+.oo-kp .mt{font-weight:800}
 .oo-kp button .sp,.oo-kp button .pp{width:20px;height:20px;font-size:.75rem}
 .oo-kp svg{width:24px;height:16px}
 .oo-adv{border:1px solid var(--line);border-radius:12px;padding:0 10px}
@@ -203,7 +208,7 @@
   </div>
   ${o.stato !== 'rifiutata' ? `<div class="oo-k">
     <button type="button" class="oo-kd ${L ? '' : 'on'}" data-oa="kdlv" aria-pressed="${!L}" title="${L ? 'Segna tutte le uova come consegnate' : 'Togli la consegna'}"><span class="ck">${L ? '' : '✓'}</span>Consegnati</button>
-    <div class="oo-kp ${R > 0.005 ? '' : 'on'}"><span>${R > 0.005 ? 'Pagamento' : '✓ Pagato'}</span>${['contanti', 'satispay', 'paypal'].map(m => `<button type="button" data-oa="kpay" data-m="${m}" class="${usedM(o).includes(m) ? 'on' : ''}" aria-pressed="${usedM(o).includes(m)}" title="${R > 0.005 ? 'Pagato ' + MNAME[m] : usedM(o).includes(m) ? 'Togli il pagamento' : 'Cambia: pagato ' + MNAME[m]}" aria-label="Pagato ${MNAME[m]}">${ICO[m]}</button>`).join('')}</div>
+    <div class="oo-kp ${R > 0.005 ? '' : 'on'}"><span>${R > 0.005 ? (usedM(o).length ? 'Pagato in parte' : 'Pagamento') : `✓ Pagato <span class="mt">${usedM(o).map(m => ({ contanti: 'in contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ')}</span>`}</span>${['contanti', 'satispay', 'paypal'].map(m => `<button type="button" data-oa="kpay" data-m="${m}" class="${usedM(o).includes(m) ? 'on' : ''}" aria-pressed="${usedM(o).includes(m)}" title="${R > 0.005 ? 'Pagato ' + MNAME[m] : usedM(o).includes(m) ? 'Togli il pagamento' : 'Cambia: pagato ' + MNAME[m]}" aria-label="Pagato ${MNAME[m]}">${ICO[m]}</button>`).join('')}</div>
   </div>` : ''}
   <details class="oo-adv" data-adv${f || advOpen.has(o.id) ? ' open' : ''}><summary>⚙️ Gestione avanzata ▾</summary><div>
   ${o.stato === 'attesa' ? `<div class="oo-dec"><span>📅 Richiesta da confermare${o.perIl ? ' per ' + giorno(o.perIl) : ''}</span><div class="oo-a"><button type="button" class="ob pr" data-oa="dec" data-v="ok">✓ Conferma</button><button type="button" class="ob" data-oa="dec" data-v="rifiutata">✕ Rifiuta</button></div></div>`
