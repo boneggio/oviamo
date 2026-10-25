@@ -492,7 +492,7 @@ function renderTrash(){
 }
 function ordersView(){
   const y = $('py').value, s = $('ps').value.trim().toLowerCase();
-  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' : true)
+  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' && !OviOrd.done(o) : true)
     && (!s || (o.nome+' '+o.cognome).toLowerCase().includes(s))).sort((a,b)=>b.data.localeCompare(a.data));
 }
 function renderOrders(){
@@ -500,7 +500,7 @@ function renderOrders(){
   $('py').innerHTML = '<option value="">Tutti gli anni</option>' + years.map(y=>`<option ${y===cur?'selected':''}>${y}</option>`).join('');
   const V = ordersView();
   [...sel].forEach(id => { if(!D.orders.some(o=>o.id===id)) sel.delete(id); });
-  const na = D.orders.filter(o=>o.stato==='attesa').length; $('cAtt').textContent = na || '';
+  const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; $('cAtt').textContent = na || '';
   { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
       dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
     $('obadge').innerHTML = [aperte ? `<span>${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot">${na} da confermare</span>` : '', dc ? `<span>🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span>💶 ${eur(di)} da incassare</span>` : ''].join(''); }
