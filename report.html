@@ -134,7 +134,9 @@ tfoot td{font-weight:600}
 .pay2{display:inline-flex;gap:4px}
 .pay2 button{display:inline-grid;place-items:center;width:36px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);cursor:pointer;opacity:.4;filter:grayscale(1);padding:0}
 .pay2 button:hover{opacity:.8;filter:none}
-.pay2 button.on{opacity:1;filter:none;border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
+.pay2 button{position:relative}
+.pay2 button.on{opacity:1;filter:none;border:2px solid var(--brand);background:var(--brand);box-shadow:0 2px 8px color-mix(in srgb,var(--brand) 45%,transparent)}
+.pay2 button.on::after{content:'✓';position:absolute;top:-8px;right:-8px;width:17px;height:17px;border-radius:50%;background:#fff;color:var(--brand);border:2px solid var(--brand);font:900 .64rem/13px Inter,sans-serif;text-align:center}
 .pay2{align-items:center}.pay2 .okm{color:var(--brand);margin-right:2px}
 .ic{width:22px;height:15px;display:inline-block;vertical-align:-2px}
 .ic.sp{width:18px;height:18px;border-radius:5px;background:#e8433d;color:#fff;font:800 .72rem/18px Inter,sans-serif;text-align:center}
