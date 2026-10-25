@@ -69,6 +69,7 @@ details.pren[open]>summary::after{transform:rotate(180deg)}
 details.pren>.in{padding:14px}
 .pb{display:flex;gap:6px;flex-wrap:wrap}
 .pb span{font:700 .78rem Inter,sans-serif;padding:3px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.pb span[data-go]{cursor:pointer}.pb span[data-go]:hover{border-color:var(--brand-2)}
 .pb .hot{background:var(--err);border-color:var(--err);color:#fff}
 @media (max-width:860px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:480px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -503,7 +504,7 @@ function renderOrders(){
   const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; $('cAtt').textContent = na || '';
   { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
       dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
-    $('obadge').innerHTML = [aperte ? `<span>${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot">${na} da confermare</span>` : '', dc ? `<span>🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span>💶 ${eur(di)} da incassare</span>` : ''].join(''); }
+    $('obadge').innerHTML = [aperte ? `<span data-go="">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot" data-go="att">${na} da confermare</span>` : '', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
@@ -580,6 +581,9 @@ function renderUsers(){
 $('tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; tab=b.dataset.t;
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('[data-p]').forEach(p=>p.hidden = p.dataset.p!==tab); if(tab==='gra'&&chart) chart.update({}); if(tab==='sic') secLoad(); if(tab==='msg') tplRender(); };
+// clic sui riepiloghi della tendina: apre e mostra l'elenco giusto
+$('obadge').onclick = e => { const s=e.target.closest('[data-go]'); if(!s) return; e.preventDefault(); $('prenBox').open = true;
+  $('pf').querySelector(`[data-f="${s.dataset.go}"]`).click(); setTimeout(()=>$('pf').scrollIntoView({block:'start',behavior:'smooth'}),50); };
 $('pf').onclick = e => { const b=e.target.closest('button'); if(!b) return; pf=b.dataset.f;
   document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x===b)); renderOrders(); };
 $('py').onchange = renderOrders; $('ps').oninput = renderOrders;
