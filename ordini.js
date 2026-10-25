@@ -91,6 +91,7 @@
 .os input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
 .os input[type=number]{width:90px;text-align:center}
 .os .hint{color:var(--muted);font-size:.8rem}
+.os-w{margin:0;padding:8px 10px;border-radius:10px;font-size:.84rem;background:color-mix(in srgb,var(--err) 10%,var(--card));color:var(--ink)}
 .card>.os>.oo-adv:only-child{border:0;padding:0}
 .card>.os>.oo-adv:only-child>summary{font-size:1.02rem;color:var(--ink);padding:2px 0}
 .oo-badge.rb{background:color-mix(in srgb,#25d366 22%,var(--card));color:#0b5a2a}
@@ -337,9 +338,17 @@
     const draw = D => {
       const v = D.available || 0, r = D.riserva || 0;
       const nums = `<div class="os-n"><div><small>🛒 In vendita<br>(si prenotano sul sito)</small><b data-n="v">${v}</b></div>
-        <div><small>🧺 In riserva<br>(richieste a data, rubrica, a mano)</small><b data-n="r" class="${r < 0 ? 'neg' : ''}">${r}</b></div></div>`;
+        <div><small>🧺 In riserva<br>(richieste a data, rubrica, a mano)</small><b data-n="r" class="${r < 0 ? 'neg' : ''}">${r}</b></div></div><p class="os-w" data-n="w"></p>`;
       if (first) { el.innerHTML = box(nums + (elS === el ? sposta : '') + (elM === el ? mano : '')); first = false; }
       else { const bv = el.querySelector('[data-n=v]'), br = el.querySelector('[data-n=r]'); bv.textContent = v; br.textContent = r; br.classList.toggle('neg', r < 0); }
+      // riserva sotto zero: spiega da dove viene
+      const w = el.querySelector('[data-n=w]'), RO = (D.orders || []).filter(o => o.pool === 'riserva' && o.stato === 'ok' && !o.eliminato);
+      w.hidden = r >= 0;
+      const tot = RO.reduce((t, o) => t + o.uova, 0);
+      if (r < 0) w.innerHTML = !RO.length ? `⚠️ <b>Mancano ${-r} uova in riserva:</b> ci sono richieste confermate senza uova messe da parte. Carica uova in riserva o spostale dalla vendita.`
+        : `⚠️ <b>Mancano ${-r} uova in riserva.</b> In riserva sono entrate <b>${tot + r}</b> uova, ma ne servono <b>${tot}</b> per: ` +
+          RO.map(o => `${esc(o.nome)} ${esc(o.cognome || '')} (${o.uova}${o.perIl ? ', per il ' + dIt(o.perIl) : o.mano ? ', a mano' : o.contatto ? ', rubrica' : ''})`).join(', ') +
+          `. Carica uova in riserva o spostale dalla vendita.`;
     };
     const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
     [...new Set([el, elS, elM])].forEach(c => {
