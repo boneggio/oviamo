@@ -206,7 +206,6 @@ footer{text-align:center;margin-top:28px}
 
     <div id="dateBox" hidden>
       <div class="field"><label for="perIl">Per che giorno ti servono?</label><input id="perIl" type="date"></div>
-      <p class="hint">Le uova restano prenotate per te e le ritiri il giorno che hai scelto.</p>
     </div>
 
     <div class="field"><label for="note">Note <span class="opt">(facoltative)</span></label><textarea id="note" rows="2" maxlength="500" placeholder="Vuoi dirmi qualcosa?"></textarea></div>
@@ -251,7 +250,7 @@ document.querySelector('.eggs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const k = +b.dataset.k, d = +b.dataset.d;
   q[k] = Math.max(0, Math.min(k===1 ? 99 : 50, q[k] + d));
-  if (AVAIL != null && n() > AVAIL) q[k] -= d;   // non oltre le uova disponibili
+  if (MODE === 'subito' && AVAIL != null && n() > AVAIL) q[k] -= d;   // "subito": non oltre le uova disponibili
   render();
 });
 
@@ -259,7 +258,7 @@ function render(){
   [1,6].forEach(k => { $('o'+k).textContent = q[k]; $('e'+k).classList.toggle('on', q[k]>0); });
   $('tot').textContent = eur(euro());
   $('totN').textContent = n() === 1 ? '1 uovo' : n() + ' uova';
-  document.querySelectorAll('.step button[data-d="1"]').forEach(b => b.disabled = AVAIL != null && n() + +b.dataset.k > AVAIL);
+  document.querySelectorAll('.step button[data-d="1"]').forEach(b => b.disabled = MODE === 'subito' && AVAIL != null && n() + +b.dataset.k > AVAIL);
 }
 function setMode(m){
   MODE = m;
@@ -282,16 +281,21 @@ async function loadInfo(){
     if(j.minData) $('perIl').min = j.minData;
     OPEN = j.open; AVAIL = j.open ? j.available : 0;
     const sub = document.querySelector('.mode[data-mode="subito"]');
-    $('mSub').textContent = 'tra le uova già pronte';
+    sub.disabled = !OPEN; $('mSub').textContent = OPEN ? 'tra le uova già pronte' : 'uova finite per ora';
     if(!OPEN){
       $('avail').hidden = true;
-      if(j.msg) $('closedMsg').textContent = j.msg;
-      $('f').hidden = true; $('closed').hidden = false;
+      if(j.closedByHand){   // chiuso a mano: niente prenotazioni
+        if(j.msg) $('closedMsg').textContent = j.msg;
+        $('f').hidden = true; $('closed').hidden = false; return;
+      }
+      // uova finite: si può solo prenotare per un giorno
+      $('closedMsg').textContent = 'Al momento le uova sono finite, ma puoi prenotarle per il giorno che ti servono.';
+      $('closed').hidden = false; $('f').hidden = false; setMode('data');
       return;
     }
     $('f').hidden = false; $('closed').hidden = true;
     $('availN').textContent = AVAIL; $('avail').hidden = false;
-    while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
+    if (MODE === 'subito') while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
     render();
   }catch(e){ /* senza info il modulo funziona lo stesso: il controllo lo fa il server */ }
 }
@@ -320,8 +324,8 @@ $('f').addEventListener('submit', async e => {
     const giorno = j.perIl ? new Date(j.perIl+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'}) : '';
     $('dintro').textContent = j.richiesta ? 'Abbiamo ricevuto la tua richiesta di ' : 'Abbiamo ricevuto la tua prenotazione di ';
     $('dpi').innerHTML = j.perIl ? '<br>da ritirare <b>' + giorno + '</b>.' : '';
-    $('pay').hidden = !j.satispay || !!j.richiesta;
-    $('ppay').hidden = !j.paypal || !!j.richiesta;
+    $('pay').hidden = !j.satispay || !!j.perIl;   // pagamenti solo per le uova "subito"
+    $('ppay').hidden = !j.paypal || !!j.perIl;
     if (j.paypal) { $('ppl').href = j.paypal; $('ppe').textContent = eur(j.euro); }
     if (j.satispay) { $('pn').textContent = String(j.satispay).replace(/^(\+\d{2})?(\d{3})(\d{3})(\d+)$/,(m,p,x,y,z)=>(p?p+' ':'')+x+' '+y+' '+z); $('pn').dataset.n = j.satispay; $('pe').textContent = eur(j.euro); }
     $('f').style.display='none'; document.querySelector('.welcome').style.display='none';
