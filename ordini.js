@@ -102,6 +102,11 @@
 .os-n b{font-family:Fraunces,Georgia,serif;font-size:1.9rem;line-height:1.05;color:var(--brand)}
 .os-n b.neg{color:var(--err)}
 .os-n.one{grid-template-columns:1fr}
+.mh-s{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.mh-s span{font-size:.84rem;padding:4px 10px;border-radius:10px;background:var(--bg)}.mh-s .r{color:var(--err)}
+.mh-l{display:grid;gap:4px}
+.mh-r{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center;font-size:.85rem;padding:6px 8px;border-radius:9px;background:var(--bg)}
+.mh-r .d{color:var(--muted);font-size:.8rem}.mh-r .r{color:var(--err);font-weight:600}.mh-r .ok{color:var(--brand);font-weight:600}
+@media (max-width:480px){.mh-r{grid-template-columns:auto 1fr auto}.mh-r>span:nth-child(4){display:none}}
 .os form{display:grid;gap:8px;padding-top:4px}
 .os .rw{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .os input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
@@ -349,7 +354,8 @@
             <button type="button" data-hm="satispay">${MET.satispay}</button>
             <button type="button" data-hm="paypal">${MET.paypal}</button></div></div>
           <div class="rw"><button class="ob pr">Registra</button><span class="hint">Risultano già consegnate. Le trovi tra le prenotazioni con 🤝 A mano.</span></div>
-        </form></div></details>`;
+        </form></div></details>
+      <details class="oo-adv" data-os="mh" hidden><summary>📋 Storico consegne a mano <span data-mh-n></span> ▾</summary><div><div class="mh-s" data-mh-s></div><div class="mh-l" data-mh></div></div></details>`;
     // le parti "Sposta" e "A mano" si disegnano una volta sola (non si perde quello che stai scrivendo quando la pagina si aggiorna)
     if (elM !== el) elM.innerHTML = box(mano);
     let first = true;
@@ -358,6 +364,15 @@
       const nums = `<div class="os-n one"><div><small>🥚 Uova disponibili<br>(si prenotano sul sito)</small><b data-n="v" class="${v < 0 ? 'neg' : ''}">${v}</b></div></div>`;
       if (first) { el.innerHTML = box(nums + (elM === el ? mano : '')); first = false; }
       else { const bv = el.querySelector('[data-n=v]'); bv.textContent = v; bv.classList.toggle('neg', v < 0); }
+      // storico delle uova date a mano (solo dove ci sono gli ordini: report e pagina di Amo)
+      const hb = elM.querySelector('[data-os=mh]'); if (!hb) return;
+      const M = (D.orders || []).filter(o => o.mano && !o.eliminato).sort((x, y) => y.data.localeCompare(x.data));
+      hb.hidden = !D.orders;
+      const inc = M.reduce((t, o) => t + paid(o), 0), dap = M.reduce((t, o) => t + rest(o), 0);
+      hb.querySelector('[data-mh-n]').textContent = M.length ? `(${M.length})` : '';
+      hb.querySelector('[data-mh-s]').innerHTML = M.length ? `<span>🥚 <b>${M.reduce((t, o) => t + o.uova, 0)}</b> uova</span><span>💶 incassati <b>${eur(inc)}</b></span>${dap > 0.005 ? `<span class="r">da incassare <b>${eur(dap)}</b></span>` : ''}` : '';
+      hb.querySelector('[data-mh]').innerHTML = M.map(o => `<div class="mh-r"><span class="d">${dIt(o.data)}</span><b>${esc(o.nome)} ${esc(o.cognome || '')}</b><span>${uTxt(o.uova)}</span><span>${eur(o.euro)}</span>${rest(o) > 0.005
+        ? `<span class="r">da pagare ${eur(rest(o))}</span>` : `<span class="ok">✓ ${usedM(o).map(m => ({ contanti: 'contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ') || 'pagato'}</span>`}</div>`).join('') || '<p class="hint">Ancora nessuna consegna a mano.</p>';
     };
     const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
     [...new Set([el, elM])].forEach(c => {
