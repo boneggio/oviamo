@@ -32,14 +32,12 @@ const dIt = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('it-IT', { we
 // uova impegnate = solo le prenotazioni confermate (le richieste "in attesa" o "rifiutate" non contano)
 // (le prenotazioni nel cestino non contano)
 // due "mucchi" di uova: VENDITA (prenotabili sul sito) e RISERVA (richieste a data, rubrica, date a mano).
-// loads.dest: '' = vendita, 'riserva', 'sposta-r' (n uova dalla vendita alla riserva), 'sposta-v' (dalla riserva alla vendita)
-// orders.pool: '' = vendita, 'riserva'
-const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '' AND COALESCE(pool,'') <> 'riserva')";
-const BOOKED_R = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '' AND pool = 'riserva')";
-const LOADED_R = "(SELECT COALESCE(SUM(CASE dest WHEN 'riserva' THEN uova WHEN 'sposta-r' THEN uova WHEN 'sposta-v' THEN -uova ELSE 0 END),0) FROM loads)";
+// (dal 27/10/26 di nuovo un solo "magazzino": la riserva è stata tolta. loads.dest e orders.pool restano solo come storico;
+//  le vecchie righe 'sposta-*' non contano)
+const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '')";
 const TRASH_DAYS = 30;   // dopo quanti giorni il cestino si svuota da solo
-const LOADED = "(SELECT COALESCE(SUM(CASE COALESCE(dest,'') WHEN '' THEN uova WHEN 'sposta-r' THEN -uova WHEN 'sposta-v' THEN uova ELSE 0 END),0) FROM loads)";
-const AV_R = `(${LOADED_R} - ${BOOKED_R})`;
+const LOADED = "(SELECT COALESCE(SUM(CASE WHEN COALESCE(dest,'') LIKE 'sposta%' THEN 0 ELSE uova END),0) FROM loads)";
+const AV_R = `(${LOADED} - ${BOOKED})`;
 const REMIND_DAYS = 3;   // promemoria Telegram per le richieste da confermare
 const WA_MSG = 'Ciao, se vuoi ci sono {uova} uova disponibili';   // testo predefinito "Avvisa su WhatsApp"
 /** Messaggi WhatsApp per i clienti (modificabili nel report, scheda 💬 Messaggi) */
@@ -152,7 +150,7 @@ async function remind_(env, db) {
   if (!L.length) return;
   const ok = await telegram(env, db, '⏰ OviAmo – richieste da confermare\n' +
     L.map(o => '• ' + dIt(o.per_il) + ': ' + o.nome + ' ' + o.cognome + ', ' + o.uova + ' uova' + (o.telefono ? ' (' + o.telefono + ')' : '')).join('\n') +
-    '\nUova in riserva ora: ' + await riserva_(db) + '\n' + SITE + '/report.html');
+    '\nUova disponibili ora: ' + await available_(db) + '\n' + SITE + '/report.html');
   if (ok) await db.prepare(`UPDATE orders SET ricordato = 1 WHERE id IN (${L.map(() => '?').join(',')})`).bind(...L.map(o => o.id)).run();
 }
 
@@ -530,7 +528,7 @@ async function request_(db, env, d, rid) {
   const ack = await waFill(db, 'ricevuta', nome, uova, euro, d.perIl);
   await telegram(env, db, '📅 OviAmo – nuova richiesta da confermare\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') +
     ' per ' + dIt(d.perIl) + '\nTel: ' + telefono + (note ? '\nNote: ' + note : '') +
-    '\nUova in riserva ora: ' + await riserva_(db),
+    '\nUova disponibili ora: ' + await available_(db),
     [...(waNum(telefono) ? [[{ text: '💬 Rispondi su WhatsApp (ricevuta)', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(ack) }]] : []),
      [{ text: '📋 Apri il report per confermare', url: SITE + '/report.html' }]]);
   return json(res);
@@ -551,8 +549,8 @@ async function decide_(db, d) {
       const o = await db.prepare('SELECT uova, stato, per_il FROM orders WHERE id = ?').bind(id).first();
       if (!o) return json({ ok: false, error: 'Richiesta non trovata' });
       if (o.stato === 'ok') return json({ ok: true, already: true });
-      const ris = !!o.per_il, av = ris ? Math.max(0, await riserva_(db)) : await available_(db);
-      return json({ ok: false, short: true, need: o.uova, available: av, where: ris ? 'riserva' : 'vendita', error: 'Uova insufficienti ' + (ris ? 'in riserva' : 'in vendita') + ': ne servono ' + o.uova + ', ci sono ' + av + '.' });
+      const av = await available_(db);
+      return json({ ok: false, short: true, need: o.uova, available: av, error: 'Uova insufficienti: ne servono ' + o.uova + ', disponibili ' + av + '.' });
     }
   } else {
     r = await db.prepare('UPDATE orders SET stato = ? WHERE id = ?').bind(v, id).run();
@@ -602,7 +600,7 @@ async function handOrder_(db, d, u) {
   const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, pool, mano)
     SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, '', 'riserva', 1 WHERE ${d.force ? '1' : AV_R + ' >= ?'}`)
     .bind(...[id, day + now_().slice(10), nome, clean(d.telefono, 30), q1, q6, uova, euro, clean(d.note, 500)].concat(d.force ? [] : [uova])).run();
-  if (!r.meta.changes) { const av = Math.max(0, await riserva_(db)); return json({ ok: false, short: true, need: uova, available: av, error: 'In riserva ci sono solo ' + av + ' uova.' }); }
+  if (!r.meta.changes) { const av = Math.max(0, await riserva_(db)); return json({ ok: false, short: true, need: uova, available: av, error: 'Ci sono solo ' + av + ' uova disponibili.' }); }
   await addMove_(db, id, day, uova, metodo ? euro : 0, metodo, u);
   await sync_(db, id);
   return json({ ok: true, available: await available_(db), riserva: await riserva_(db) });
@@ -718,7 +716,7 @@ async function contactOrder_(db, d) {
   const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il, contatto, pool)
     SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, '', ?, 'riserva' WHERE ${AV_R} >= ?`)
     .bind(newId('p'), data, c.nome, c.tel, q1, q6, uova, euro, clean(d.note, 500), c.id, uova).run();
-  if (!r.meta.changes) return json({ ok: false, error: 'Uova insufficienti in riserva: ce ne sono ' + Math.max(0, await riserva_(db)) + '. Caricane in riserva o spostale dalla vendita.' });
+  if (!r.meta.changes) return json({ ok: false, error: 'Uova insufficienti: disponibili ' + await available_(db) + '. Carica prima le uova.' });
   return json({ ok: true, available: await available_(db) });
 }
 
