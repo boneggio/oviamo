@@ -37,6 +37,10 @@
 .oo-q .lb{flex:1 1 100%;font-weight:600}
 .oo-q input{width:84px;font:inherit;font-size:.95rem;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);text-align:center}
 .oo-q .st{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--brand);font-size:1.1rem;cursor:pointer}
+.oo-q.ask{padding:8px;border-radius:10px;background:color-mix(in srgb,var(--yolk) 30%,var(--card))}
+.oo-q.ask .lb small{font-weight:500;color:var(--muted)}
+.oo-q.shake{animation:ooShake .4s;outline:2px solid var(--err)}
+@keyframes ooShake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .oo-m{display:flex;gap:6px;flex-wrap:wrap}
 .oo-m button{padding:7px 11px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
 .oo-m button.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 16%,var(--card));color:var(--brand)}
@@ -179,14 +183,14 @@
         <button type="button" class="st" data-oa="fn" data-d="1" aria-label="Più">+</button>
         <small style="color:var(--muted)">su ${uTxt(L)} da consegnare</small></div>
       ${f.mode === 'pay' && L ? `<div><button type="button" class="oo-lk" data-oa="fneq" ${eqN && f.n !== eqN ? '' : 'hidden'}>${eqTxt(eqN)}</button></div>` : ''}
-      <div class="oo-q"><span class="lb">${f.mode === 'dlv' ? 'Sono pagate?' : 'Pagato ora €'}</span>
+      <div class="oo-q${f.mode === 'dlv' && !f.answered ? ' ask' : ''}"><span class="lb">${f.mode === 'dlv' ? 'Sono pagate? <small>(scegli una risposta)</small>' : 'Pagato ora €'}</span>
         <div class="oo-m">${f.mode === 'dlv' ? `<button type="button" data-oa="fm" data-m="" class="${f.m === '' && f.answered ? 'on' : ''}">Non pagate</button>` : ''}
           <button type="button" data-oa="fm" data-m="contanti" class="${f.m === 'contanti' ? 'on' : ''}">${MET.contanti}</button>
           <button type="button" data-oa="fm" data-m="satispay" class="${f.m === 'satispay' ? 'on' : ''}">${MET.satispay}</button>
           <button type="button" data-oa="fm" data-m="paypal" class="${f.m === 'paypal' ? 'on' : ''}">${MET.paypal}</button></div></div>
       ${f.m ? `<div class="oo-q"><span class="lb">Importo €</span><input name="e" inputmode="decimal" value="${String(r2(f.e)).replace('.', ',')}" aria-label="Importo pagato ora"><small style="color:var(--muted)">su ${eur(R)} da pagare</small></div>` : ''}
       <div class="oo-sum">${sumTxt(o, f)}</div>
-      <div class="oo-a"><button class="ob pr" ${f.mode === 'dlv' && !f.answered ? 'disabled title="Scegli se sono pagate"' : ''}>Registra</button><button type="button" class="ob" data-oa="fx">Annulla</button></div>
+      <div class="oo-a"><button class="ob pr">Registra</button><button type="button" class="ob" data-oa="fx">Annulla</button></div>
     </form>`;
   }
 
@@ -302,7 +306,7 @@
     el.addEventListener('submit', e => {
       const fm = e.target.closest('[data-of]'); if (!fm) return; e.preventDefault();
       const id = fm.dataset.of, o = getOrder(id), f = forms.get(id); if (!o || !f) return;
-      if (f.mode === 'dlv' && !f.answered) return toast('Scegli se sono pagate');
+      if (f.mode === 'dlv' && !f.answered) { const q = fm.querySelector('.oo-q.ask'); if (q) { q.classList.remove('shake'); void q.offsetWidth; q.classList.add('shake'); } return toast('Prima scegli se sono pagate: "Non pagate", Contanti, Satispay o PayPal'); }
       const euro = f.m ? r2(f.e) : 0;
       if (!f.n && !(euro > 0)) return toast('Niente da registrare');
       forms.delete(id);
