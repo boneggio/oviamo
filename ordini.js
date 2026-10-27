@@ -212,7 +212,7 @@
     const op = miniOpen.has(o.id) || forms.has(o.id);
     const d = o.perIl ? 'per ' + new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' }) : dIt(o.data);
     return `<div class="om${op ? ' op' : ''}" data-mid="${esc(o.id)}"><button type="button" class="om-h" data-tg="${esc(o.id)}" aria-expanded="${op}">
-      <span class="om-n"><b>${esc(o.nome)} ${esc(o.cognome || '')}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : ''}${o.mano ? ' <span class="oo-badge mn">🤝</span>' : ''}</span>
+      <span class="om-n"><b>${esc(o.nome)} ${esc(o.cognome || '')}</b>${o.mano ? ' <span class="oo-badge mn">🤝</span>' : ''}</span>
       <span class="om-d">${d}</span><span class="om-u">${uTxt(o.uova)}</span><span class="om-e">${eur(o.euro)}</span><span class="om-c">▸</span></button>${op ? row(o, opt) : ''}</div>`;
   };
   /** Un ordine "subito" si può rifiutare finché non è iniziata consegna o pagamento */
@@ -234,15 +234,11 @@
     <div class="oo-kp ${R > 0.005 ? '' : 'on'}"><span>${R > 0.005 ? (usedM(o).length ? 'Pagato in parte' : 'Pagamento') : `✓ Pagato <span class="mt">${usedM(o).map(m => ({ contanti: 'in contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ')}</span>`}</span>${['contanti', 'satispay', 'paypal'].map(m => `<button type="button" data-oa="kpay" data-m="${m}" class="${usedM(o).includes(m) ? 'on' : ''}" aria-pressed="${usedM(o).includes(m)}" title="${R > 0.005 ? 'Pagato ' + MNAME[m] : usedM(o).includes(m) ? 'Togli il pagamento' : 'Cambia: pagato ' + MNAME[m]}" aria-label="Pagato ${MNAME[m]}">${ICO[m]}</button>`).join('')}</div>
   </div>` : ''}
   <details class="oo-adv" data-adv${f || advOpen.has(o.id) ? ' open' : ''}><summary>⚙️ Gestione avanzata ▾</summary><div>
-  ${o.stato === 'attesa' ? `<div class="oo-dec"><span>📅 Richiesta da confermare${o.perIl ? ' per ' + giorno(o.perIl) : ''}</span><div class="oo-a"><button type="button" class="ob pr" data-oa="dec" data-v="ok">✓ Conferma</button><button type="button" class="ob" data-oa="dec" data-v="rifiutata">✕ Rifiuta</button></div></div>`
-    : o.stato === 'rifiutata' ? (o.perIl ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>`
-      : `<div class="oo-dec rej"><span>Ordine rifiutato</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="ok">Annulla il rifiuto</button></div></div>`) : ''}
-  ${o.stato === 'rifiutata' ? (waConf(o) ? `<div class="oo-a"><a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a></div>` : '')
-    : f ? formHtml(o, f) : `${L || R > 0.005 ? `<div class="oo-a">
+  ${o.stato === 'rifiutata' ? `<div class="oo-dec rej"><span>Ordine rifiutato</span></div>`
+    : f ? formHtml(o, f) : L || R > 0.005 ? `<div class="oo-a">
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
-  </div>` : ''}${waConf(o) ? `<div class="oo-a"><a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a></div>` : ''}`}
-  ${canRej(o) ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="dec" data-v="rifiutata">✕ Rifiuta ordine</button></div>` : ''}
+  </div>` : `<span style="font-size:.84rem;color:var(--muted)">Consegnato e pagato: niente da registrare.</span>`}
   </div></details>
   ${opt.del ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button></div>` : ''}
   ${mv.length ? `<details class="oo-hist"><summary>📋 Movimenti (${mv.length}) ▾</summary><div class="oo-pl">${mv.map(m => `<span>${dIt(m.data)} · ${m.uova ? '🥚 ' + uTxt(m.uova) + ' consegnate' : ''}${m.uova && m.euro > 0 ? ' · ' : ''}${m.euro > 0 ? '💶 ' + eur(m.euro) + (m.metodo === 'satispay' ? ' Satispay' : m.metodo === 'paypal' ? ' PayPal' : m.metodo === 'contanti' ? ' contanti' : '') : ''}<button type="button" data-oa="pdel" data-pid="${esc(m.id)}" aria-label="Annulla questo movimento">×</button></span>`).join('')}</div></details>` : ''}
@@ -287,7 +283,6 @@
             if (!j.ok) { toast(j.error || 'Non salvato'); b.disabled = false; return; }
             toast(v === 'ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : v === 'rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
             await reload();
-            if (v === 'ok' || v === 'rifiutata') waPrompt({ ...o, stato: v });
           } catch (x) { toast('Non salvato, riprova'); b.disabled = false; }
         })();
         return;
