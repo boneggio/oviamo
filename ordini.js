@@ -101,6 +101,7 @@
 .os-n small{color:var(--muted);font-size:.78rem;line-height:1.25}
 .os-n b{font-family:Fraunces,Georgia,serif;font-size:1.9rem;line-height:1.05;color:var(--brand)}
 .os-n b.neg{color:var(--err)}
+.os-n.one{grid-template-columns:1fr}
 .os form{display:grid;gap:8px;padding-top:4px}
 .os .rw{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .os input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
@@ -282,8 +283,8 @@
           try {
             if (v === 'rifiutata' && (o.stato || 'ok') === 'ok' && !confirm(`Rifiutare l'ordine di ${o.nome} ${o.cognome || ''} (${uTxt(o.uova)})? Le uova tornano disponibili.`)) { b.disabled = false; return; }
             let j = await post({ action: 'decide', id, value: v });
-            if (!j.ok && j.short && confirm(`Adesso ${j.where === 'riserva' ? 'in riserva' : 'in vendita'} ci sono solo ${j.available} uova e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
-            if (!j.ok) { toast(j.short ? j.error + (j.where === 'riserva' ? ' Sposta delle uova in riserva.' : '') : j.error || 'Non salvato'); b.disabled = false; return; }
+            if (!j.ok && j.short && confirm(`Adesso ci sono solo ${j.available} uova disponibili e ne servono ${j.need}.\n\nConfermare lo stesso? Le prossime uova che carichi andranno prima a questa prenotazione.`)) j = await post({ action: 'decide', id, value: v, force: true });
+            if (!j.ok) { toast(j.error || 'Non salvato'); b.disabled = false; return; }
             toast(v === 'ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : v === 'rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
             await reload();
             if (v === 'ok' || v === 'rifiutata') waPrompt({ ...o, stato: v });
@@ -331,18 +332,19 @@
       run({ action: 'move', id, uova: f.n, euro, metodo: f.m || '' }, 'Registrato');
     });
   }
-  /** Riquadro scorte: uova in vendita e in riserva, "Sposta uova" e "Uova date a mano" */
+  /** Riquadro scorte: uova disponibili e "Uova date a mano" */
   function stock(el, post, reload, opt) {
     opt = opt || {};
     if (!document.getElementById('ooCss')) { const s = document.createElement('style'); s.id = 'ooCss'; s.textContent = css; document.head.appendChild(s); }
     const toast = t => (window.toast ? window.toast(t) : alert(t));
     let hm = '';
-    const elS = opt.sposta || el, elM = opt.mano || el;
+    const elM = opt.mano || el;
+    if (opt.sposta) opt.sposta.hidden = true;   // "Sposta uova" non c'è più (riserva tolta)
     const box = h => `<div class="os oo" style="border:0;padding:0;background:none">${h}</div>`;
     const sposta = `<details class="oo-adv" data-os="sp"><summary>↔️ Sposta uova tra vendita e riserva ▾</summary><div>
         <form data-of="shift"><div class="rw"><input name="n" type="number" inputmode="numeric" min="1" placeholder="Uova" aria-label="Uova da spostare">
           <button type="button" class="ob" data-sv="riserva">Vendita → Riserva</button><button type="button" class="ob" data-sv="vendita">Riserva → Vendita</button></div></form></div></details>`;
-    const mano = `<details class="oo-adv" data-os="mano"><summary>🤝 Uova date a mano (dalla riserva) ▾</summary><div>
+    const mano = `<details class="oo-adv" data-os="mano"><summary>🤝 Uova date a mano ▾</summary><div>
         <form data-of="mano">
           <div class="rw"><input name="nome" placeholder="A chi le hai date" maxlength="60" style="flex:1 1 160px" required><input name="uova" type="number" inputmode="numeric" min="1" placeholder="Uova" aria-label="Uova"></div>
           <div class="rw"><input name="euro" inputmode="decimal" placeholder="Prezzo €" aria-label="Prezzo" style="width:110px"><span class="hint" data-pz></span></div>
@@ -354,29 +356,16 @@
           <div class="rw"><button class="ob pr">Registra</button><span class="hint">Risultano già consegnate. Le trovi tra le prenotazioni con 🤝 A mano.</span></div>
         </form></div></details>`;
     // le parti "Sposta" e "A mano" si disegnano una volta sola (non si perde quello che stai scrivendo quando la pagina si aggiorna)
-    if (elS !== el) elS.innerHTML = box(sposta);
-    if (elM !== el && elM !== elS) elM.innerHTML = box(mano); else if (elM === elS && elS !== el) elS.innerHTML = box(sposta + mano);
+    if (elM !== el) elM.innerHTML = box(mano);
     let first = true;
     const draw = D => {
-      const v = D.available || 0, r = D.riserva || 0;
-      const nums = `<div class="os-n"><div><small>🛒 In vendita<br>(si prenotano sul sito)</small><b data-n="v">${v}</b></div>
-        <div><small>🧺 In riserva<br>(richieste a data, rubrica, a mano)</small><b data-n="r" class="${r < 0 ? 'neg' : ''}">${r}</b></div></div><p class="os-w" data-n="w"></p>`;
-      if (first) { el.innerHTML = box(nums + (elS === el ? sposta : '') + (elM === el ? mano : '')); first = false; }
-      else { const bv = el.querySelector('[data-n=v]'), br = el.querySelector('[data-n=r]'); bv.textContent = v; br.textContent = r; br.classList.toggle('neg', r < 0); }
-      // riserva sotto zero: spiega da dove viene
-      const w = el.querySelector('[data-n=w]'), RO = (D.orders || []).filter(o => o.pool === 'riserva' && o.stato === 'ok' && !o.eliminato);
-      w.hidden = r >= 0;
-      const tot = RO.reduce((t, o) => t + o.uova, 0), out = RO.filter(o => cons(o) > 0), open = RO.filter(o => left(o) > 0);
-      const nm = o => `${esc(o.nome)} ${esc(o.cognome || '')}`.trim();
-      const usc = out.reduce((t, o) => t + cons(o), 0), serv = open.reduce((t, o) => t + left(o), 0);
-      if (r < 0) w.innerHTML = !RO.length ? `⚠️ <b>Mancano ${-r} uova in riserva:</b> ci sono richieste confermate senza uova messe da parte. Carica uova in riserva o spostale dalla vendita.`
-        : `⚠️ <b>Mancano ${-r} uova in riserva.</b> In riserva sono entrate <b>${tot + r}</b> uova.` +
-          (out.length ? ` Ne sono già uscite <b>${usc}</b> (${out.map(o => `${nm(o)} ${cons(o)}`).join(', ')}).` : '') +
-          (open.length ? ` Ne servono ancora <b>${serv}</b> per: ${open.map(o => `${nm(o)} ${left(o)}${o.perIl ? ' per il ' + dIt(o.perIl) : ''}`).join(', ')}.` : '') +
-          ` Carica uova in riserva o spostale dalla vendita.`;
+      const v = D.available || 0;
+      const nums = `<div class="os-n one"><div><small>🥚 Uova disponibili<br>(si prenotano sul sito)</small><b data-n="v" class="${v < 0 ? 'neg' : ''}">${v}</b></div></div>`;
+      if (first) { el.innerHTML = box(nums + (elM === el ? mano : '')); first = false; }
+      else { const bv = el.querySelector('[data-n=v]'); bv.textContent = v; bv.classList.toggle('neg', v < 0); }
     };
     const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
-    [...new Set([el, elS, elM])].forEach(c => {
+    [...new Set([el, elM])].forEach(c => {
       c.addEventListener('input', e => { const f = e.target.form; if (f && f.dataset.of === 'mano') { const n = parseInt(f.uova.value, 10) || 0; f.querySelector('[data-pz]').textContent = n ? 'automatico: ' + eur(price(n)) : ''; f.euro.placeholder = n ? String(price(n)).replace('.', ',') + ' €' : 'Prezzo €'; } });
       c.addEventListener('click', async e => {
         const m = e.target.closest('[data-hm]');
@@ -394,7 +383,7 @@
         if (!nome) return toast('Scrivi a chi le hai date'); if (n < 1) return toast('Scrivi quante uova');
         const btn = f.querySelector('.ob.pr'); btn.disabled = true;
         try { const j = await post({ action: 'handOrder', nome, uova: n, euro: f.euro.value.trim(), metodo: hm });
-          if (!j.ok) throw new Error(j.short ? j.error + ' Sposta prima delle uova dalla vendita alla riserva.' : j.error);
+          if (!j.ok) throw new Error(j.error);
           toast(`${nome}: ${uTxt(n)} date a mano ✓`); f.reset(); hm = ''; f.querySelectorAll('[data-hm]').forEach(x => x.classList.toggle('on', x.dataset.hm === '')); f.querySelector('[data-pz]').textContent = ''; f.euro.placeholder = 'Prezzo €'; await reload(); }
         catch (x) { toast(x.message || 'Non salvato'); } finally { btn.disabled = false; }
       });
