@@ -121,7 +121,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 
   <section class="card" id="availBox" hidden></section>
 
-  <section class="card pbox" id="ordCard" hidden>
+  <section class="card pbox" id="ordCard" data-fold="pren" data-fold-open hidden>
     <h2>🧺 Prenotazioni</h2>
     <div class="pb" id="obadge"></div>
   </section>
@@ -140,7 +140,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 
   <section class="card" id="manoBox" hidden></section>
 
-  <section class="card" id="loadCard" hidden>
+  <section class="card" id="loadCard" data-fold="carica" data-fold-open hidden>
     <h2>🥚 Carica le uova raccolte</h2>
     <form id="fl">
       <div class="field"><label for="lq">Quante uova?</label>
@@ -161,7 +161,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
   </details>
 
 
-  <section class="card" id="henCard" hidden>
+  <section class="card" id="henCard" data-fold="galline" hidden>
     <h2>🐔 Galline nel pollaio</h2>
     <div class="osum" id="hnow"></div>
     <form id="fh">
@@ -183,7 +183,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     </details>
   </section>
 
-  <section class="card" id="costCard" hidden>
+  <section class="card" id="costCard" data-fold="costi" hidden>
     <h2>🌾 Costi (mangime e altro)</h2>
     <form id="fc">
       <div class="grid">
@@ -201,7 +201,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     </details>
   </section>
 
-  <section class="card" id="chartCard" hidden>
+  <section class="card" id="chartCard" data-fold="grafico" hidden>
     <h2>📈 Vendite e costi</h2>
     <div id="chart"></div>
   </section>
@@ -210,6 +210,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 </main>
 <div class="toast" id="toast"></div>
 
+<script src="tendine.js"></script>
 <script src="grafico.js"></script>
 <script src="ordini.js"></script>
 <script>
