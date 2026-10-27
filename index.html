@@ -158,13 +158,12 @@ footer{text-align:center;margin-top:28px}
   <div class="card closed" id="closed" hidden>
     <h2 style="justify-content:center">Uova finite</h2>
     <p id="closedMsg">Al momento le uova sono finite. Appena le galline ne fanno altre vi avviseremo. Grazie!</p>
-    <button class="btn" type="button" id="askDate">📅 Chiedile per una data futura</button>
   </div>
 
   <form class="card" id="f" novalidate>
     <div class="modes" role="radiogroup" aria-label="Tipo di prenotazione">
       <button type="button" class="mode on" data-mode="subito" role="radio" aria-checked="true"><b>🥚 Subito</b><small id="mSub">tra le uova già pronte</small></button>
-      <button type="button" class="mode" data-mode="data" role="radio" aria-checked="false"><b>📅 Per una data</b><small>su richiesta, da confermare</small></button>
+      <button type="button" class="mode" data-mode="data" role="radio" aria-checked="false"><b>📅 Per una data</b><small>scegli tu il giorno</small></button>
     </div>
     <h2><span class="n">1</span> Chi sei</h2>
     <div class="row">
@@ -207,7 +206,7 @@ footer{text-align:center;margin-top:28px}
 
     <div id="dateBox" hidden>
       <div class="field"><label for="perIl">Per che giorno ti servono?</label><input id="perIl" type="date"></div>
-      <p class="hint">⚠️ <b>Non è una prenotazione garantita:</b> le galline non fanno sempre le stesse uova e non possiamo metterle da parte troppi giorni prima. Ti scriviamo su WhatsApp <b>qualche giorno prima</b> per confermarti se ci sono.</p>
+      <p class="hint">Le uova restano prenotate per te e le ritiri il giorno che hai scelto.</p>
     </div>
 
     <div class="field"><label for="note">Note <span class="opt">(facoltative)</span></label><textarea id="note" rows="2" maxlength="500" placeholder="Vuoi dirmi qualcosa?"></textarea></div>
@@ -252,7 +251,7 @@ document.querySelector('.eggs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const k = +b.dataset.k, d = +b.dataset.d;
   q[k] = Math.max(0, Math.min(k===1 ? 99 : 50, q[k] + d));
-  if (MODE === 'subito' && AVAIL != null && n() > AVAIL) q[k] -= d;   // non oltre le uova disponibili
+  if (AVAIL != null && n() > AVAIL) q[k] -= d;   // non oltre le uova disponibili
   render();
 });
 
@@ -260,14 +259,13 @@ function render(){
   [1,6].forEach(k => { $('o'+k).textContent = q[k]; $('e'+k).classList.toggle('on', q[k]>0); });
   $('tot').textContent = eur(euro());
   $('totN').textContent = n() === 1 ? '1 uovo' : n() + ' uova';
-  document.querySelectorAll('.step button[data-d="1"]').forEach(b => b.disabled = MODE === 'subito' && AVAIL != null && n() + +b.dataset.k > AVAIL);
+  document.querySelectorAll('.step button[data-d="1"]').forEach(b => b.disabled = AVAIL != null && n() + +b.dataset.k > AVAIL);
 }
 function setMode(m){
   MODE = m;
   document.querySelectorAll('.mode').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   $('dateBox').hidden = m !== 'data';
-  $('telOpt').textContent = m === 'data' ? '(serve per la conferma su WhatsApp)' : '(facoltativo)';
-  $('go').textContent = m === 'data' ? 'Invia la richiesta' : 'Prenota le uova';
+  $('go').textContent = 'Prenota le uova';
   $('msg').className = 'msg';
   if (m === 'subito' && AVAIL != null) while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
   render();
@@ -284,22 +282,21 @@ async function loadInfo(){
     if(j.minData) $('perIl').min = j.minData;
     OPEN = j.open; AVAIL = j.open ? j.available : 0;
     const sub = document.querySelector('.mode[data-mode="subito"]');
-    sub.disabled = !OPEN; $('mSub').textContent = OPEN ? 'tra le uova già pronte' : 'uova finite per ora';
+    $('mSub').textContent = 'tra le uova già pronte';
     if(!OPEN){
       $('avail').hidden = true;
       if(j.msg) $('closedMsg').textContent = j.msg;
-      if(MODE === 'subito'){ $('f').hidden = true; $('closed').hidden = false; }
+      $('f').hidden = true; $('closed').hidden = false;
       return;
     }
     $('f').hidden = false; $('closed').hidden = true;
     $('availN').textContent = AVAIL; $('avail').hidden = false;
-    if (MODE === 'subito') while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
+    while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
     render();
   }catch(e){ /* senza info il modulo funziona lo stesso: il controllo lo fa il server */ }
 }
 loadInfo();
 { const d=new Date(); d.setDate(d.getDate()+1); const p=n=>String(n).padStart(2,'0'); $('perIl').min = d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
-$('askDate').onclick = () => { $('closed').hidden = true; $('f').hidden = false; setMode('data'); $('f').scrollIntoView({behavior:'smooth'}); };
 
 $('f').addEventListener('submit', async e => {
   e.preventDefault(); $('msg').className='msg';
@@ -308,7 +305,6 @@ $('f').addEventListener('submit', async e => {
   if(!n()) return err('Scegli almeno un uovo.');
   if(MODE === 'data'){
     if(!$('perIl').value) return err('Scegli il giorno in cui ti servono.');
-    if($('telefono').value.replace(/\D/g,'').length < 6) return err('Scrivi il telefono: ti mandiamo la conferma su WhatsApp.');
   }
   const btn=$('go'); btn.disabled=true; btn.textContent='Invio in corso…';
   try{
@@ -323,7 +319,7 @@ $('f').addEventListener('submit', async e => {
     $('dn').textContent=nome; $('dk').textContent=j.uova===1?'1 uovo':j.uova+' uova'; $('de').textContent=eur(j.euro);
     const giorno = j.perIl ? new Date(j.perIl+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'}) : '';
     $('dintro').textContent = j.richiesta ? 'Abbiamo ricevuto la tua richiesta di ' : 'Abbiamo ricevuto la tua prenotazione di ';
-    $('dpi').innerHTML = j.richiesta ? '<br>per <b>' + giorno + '</b>.<br><br>⚠️ <b>Non è ancora confermata:</b> ti scriviamo su WhatsApp qualche giorno prima per dirti se le uova ci sono.' : '';
+    $('dpi').innerHTML = j.perIl ? '<br>da ritirare <b>' + giorno + '</b>.' : '';
     $('pay').hidden = !j.satispay || !!j.richiesta;
     $('ppay').hidden = !j.paypal || !!j.richiesta;
     if (j.paypal) { $('ppl').href = j.paypal; $('ppe').textContent = eur(j.euro); }
@@ -332,7 +328,7 @@ $('f').addEventListener('submit', async e => {
     $('done').style.display='block'; window.scrollTo({top:0,behavior:'smooth'});
     if(j.left != null){ AVAIL = j.left; $('availN').textContent = AVAIL; }
   }catch(x){ err('Non siamo riusciti a inviare la prenotazione. Riprova tra poco. ('+x.message+')'); }
-  finally{ btn.disabled=false; btn.textContent = MODE === 'data' ? 'Invia la richiesta' : 'Prenota le uova'; }
+  finally{ btn.disabled=false; btn.textContent = 'Prenota le uova'; }
 });
 
 $('pcopy').onclick = async () => {
