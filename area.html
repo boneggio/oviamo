@@ -54,6 +54,13 @@ details.pren>.in{padding:14px 18px 18px}
 .pb{display:flex;gap:6px;flex-wrap:wrap;width:100%}
 .pb span{font:700 .78rem Inter,sans-serif;padding:3px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
 .pb span[data-go]{cursor:pointer}.pb span[data-go]:hover{border-color:var(--brand-2)}
+.pbox{border:2px solid var(--brand-2);background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
+.pbox h2{margin:0 0 10px;font-size:1.3rem}
+.pbox .pb span{font-size:.9rem;padding:8px 14px}
+.pbox .pb span.on{outline:3px solid var(--brand);outline-offset:1px}
+.olh{display:flex;align-items:center;gap:10px;margin-bottom:10px}.olh h2{margin:0;flex:1}
+.olx{border:1px solid var(--line);background:var(--bg);border-radius:50%;width:34px;height:34px;cursor:pointer;color:var(--muted);font-size:1rem}
+#ords,#odone{display:grid;gap:8px}
 .pb .hot{background:var(--err);border-color:var(--err);color:#fff}
 .dst{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--bg);color:var(--muted);white-space:nowrap}.dst.r{background:color-mix(in srgb,#8a5cf6 16%,var(--card));color:#4b2a9a}
 .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
@@ -114,19 +121,21 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
 
   <section class="card" id="availBox" hidden></section>
 
-  <details class="card pren" id="ordCard" hidden>
-    <summary><h2>🧺 Prenotazioni</h2><span class="pb" id="obadge"></span></summary>
-    <div class="in">
-    <div class="osum" id="osum"></div>
-    <div class="seg" id="of"><button data-f="np" class="on">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="att">Da confermare</button><button data-f="">Tutte</button></div>
+  <section class="card pbox" id="ordCard" hidden>
+    <h2>🧺 Prenotazioni</h2>
+    <div class="pb" id="obadge"></div>
+  </section>
+
+  <section class="card" id="ordList" hidden>
+    <div class="olh"><h2 id="olTitle">Prenotazioni</h2><button type="button" class="olx" id="olClose" aria-label="Chiudi l'elenco">✕</button></div>
     <div class="list" id="ords"></div>
     <button class="more" id="omore" hidden>Mostra tutte</button>
-    <details class="hist sub" id="odoneBox">
-      <summary><h2>📋 Storico (pagate e consegnate)</h2><span class="n" id="odCount"></span></summary>
-      <div class="list" id="odone"></div>
-      <button class="more" id="odmore" hidden>Mostra tutte</button>
-    </details>
-    </div>
+  </section>
+
+  <details class="card hist" id="odoneBox" hidden>
+    <summary><h2>📋 Storico ordini (pagati e consegnati)</h2><span class="n" id="odCount"></span></summary>
+    <div class="list" id="odone"></div>
+    <button class="more" id="odmore" hidden>Mostra tutte</button>
   </details>
 
   <section class="card" id="manoBox" hidden></section>
@@ -220,7 +229,7 @@ const dIt = s => { const p=String(s).slice(0,10).split('-'); return p.length===3
 const pad = n => String(n).padStart(2,'0');
 const today = () => { const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
 const TK = new URLSearchParams(location.search).get('k') || '';
-let D = null, chart = null, allL = false, allC = false, allO = false, allOD = false, of = 'np';
+let D = null, chart = null, allL = false, allC = false, allO = false, allOD = false, of = null;
 
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TK,...body})}).then(r=>r.json());
@@ -317,23 +326,25 @@ const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Bool
 function renderOrders(){
   const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
   const OK = O.filter(o=>(o.stato||'ok')==='ok'), done = OviOrd.done;
-  $('osum').innerHTML = `<span>Da incassare: <b>${eur(OK.reduce((t,o)=>t+OviOrd.rest(o),0))}</b></span><span>Uova da consegnare: <b>${OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)}</b></span>`;
   const att = O.filter(o=>o.stato==='attesa' && !done(o)).length, dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0), aperte = O.filter(o=>!done(o)).length;
   $('obadge').innerHTML = [aperte ? `<span data-go="">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', att ? `<span class="hot" data-go="att">${att} da confermare</span>` : '', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join('');
-  const V = O.filter(o => !done(o) && (of==='np' ? OviOrd.rest(o) > 0.005 && o.stato!=='attesa' : of==='nc' ? OviOrd.cons(o) < o.uova && o.stato!=='attesa' : of==='att' ? o.stato==='attesa' : true)).sort((a,b)=>b.data.localeCompare(a.data));
+  $('ordList').hidden = of === null; $('odoneBox').hidden = false;
+  document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', x.dataset.go === of));
+  $('olTitle').textContent = ({'':'Da sistemare', att:'Da confermare', nc:'Da consegnare', np:'Da incassare'})[of] || 'Prenotazioni';
+  const V = of === null ? [] : O.filter(o => !done(o) && (of==='np' ? OviOrd.rest(o) > 0.005 && o.stato!=='attesa' : of==='nc' ? OviOrd.cons(o) < o.uova && o.stato!=='attesa' : of==='att' ? o.stato==='attesa' : true)).sort((a,b)=>b.data.localeCompare(a.data));
   const vis = allO ? V : V.slice(0,15);
-  $('ords').innerHTML = vis.map(o => OviOrd.row(o, { del: true })).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione da sistemare in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
+  $('ords').innerHTML = vis.map(o => OviOrd.mini(o, { del: true })).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione da sistemare in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
   const F = O.filter(done).sort((a,b)=>b.data.localeCompare(a.data));
-  $('odone').innerHTML = (allOD ? F : F.slice(0,15)).map(o => OviOrd.row(o, { del: true })).join('') || '<p class="empty">Ancora nessuna prenotazione completata.</p>';
+  $('odone').innerHTML = (allOD ? F : F.slice(0,15)).map(o => OviOrd.mini(o, { del: true })).join('') || '<p class="empty">Ancora nessuna prenotazione completata.</p>';
   $('odmore').hidden = allOD || F.length <= 15;
   $('odCount').textContent = F.length === 1 ? '1 prenotazione' : F.length + ' prenotazioni';
   $('omore').hidden = allO || V.length <= 15;
 }
-// clic sui riepiloghi della tendina: apre e mostra l'elenco giusto
-$('obadge').onclick = e => { const s=e.target.closest('[data-go]'); if(!s) return; e.preventDefault(); $('ordCard').open = true;
-  $('of').querySelector(`[data-f="${s.dataset.go}"]`).click(); setTimeout(()=>$('of').scrollIntoView({block:'start',behavior:'smooth'}),50); };
-$('of').onclick = e => { const b=e.target.closest('button'); if(!b) return; of=b.dataset.f;
-  document.querySelectorAll('#of button').forEach(x=>x.classList.toggle('on',x===b)); renderOrders(); };
+// clic sui tasti del riquadro Prenotazioni: mostra (o chiude) l'elenco di quel tasto
+$('obadge').onclick = e => { const s=e.target.closest('[data-go]'); if(!s) return;
+  of = of === s.dataset.go ? null : s.dataset.go; allO = false; renderOrders();
+  if (of !== null) setTimeout(()=>$('ordList').scrollIntoView({block:'start',behavior:'smooth'}),50); };
+$('olClose').onclick = () => { of = null; renderOrders(); };
 $('omore').onclick = () => { allO=true; renderOrders(); };
 $('odmore').onclick = () => { allOD=true; renderOrders(); };
 const ordReload = local => local ? renderOrders() : load();
