@@ -222,7 +222,8 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
   <div id="app" hidden style="display:grid;gap:14px">
     <div class="kpis" id="kpis"></div>
 
-    <section class="card">
+    <section class="card" data-fold="impostazioni">
+      <h2>⚙️ Impostazioni sito e avvisi Telegram</h2>
       <div class="set">
         <label class="sw"><input type="checkbox" id="open"><i></i><span id="openL">Prenotazioni aperte</span></label>
         <input id="msg" maxlength="300" placeholder="Messaggio quando le uova sono finite o le prenotazioni chiuse">
@@ -377,6 +378,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 <div class="toast" id="toast"></div>
 
 <script src="grafico.js"></script>
+<script src="tendine.js"></script>
 <script src="ordini.js"></script>
 <script>
 const SCRIPT_URL = '/api';   // motore su Cloudflare (functions/api.js)
