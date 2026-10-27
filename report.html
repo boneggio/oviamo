@@ -507,7 +507,7 @@ function renderOrders(){
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
-    <td><button type="button" class="det" data-det="${esc(o.id)}" aria-expanded="${openDet.has(o.id)}">${openDet.has(o.id)?'▾':'▸'} <b>${esc(o.nome)} ${esc(o.cognome)}</b></button>${o.contatto?' <span class="stb rb">Rubrica</span>':''}${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${waBtn(o)}${decBtns(o)}</td>
+    <td><button type="button" class="det" data-det="${esc(o.id)}" aria-expanded="${openDet.has(o.id)}">${openDet.has(o.id)?'▾':'▸'} <b>${esc(o.nome)} ${esc(o.cognome)}</b></button>${o.contatto?' <span class="stb rb">Rubrica</span>':''}${o.mano?' <span class="stb rb">🤝 A mano</span>':''}${stBadge(o)}${o.note?`<div class="note">“${esc(o.note)}”</div>`:''}${waBtn(o)}${decBtns(o)}</td>
     <td>${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td>
     <td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td>
     <td class="n">${eur(o.euro)}</td>
