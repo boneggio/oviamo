@@ -143,13 +143,8 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
   <section class="card" id="loadCard" hidden>
     <h2>🥚 Carica le uova raccolte</h2>
     <form id="fl">
-      <div class="two">
-        <div class="field"><label for="lq">🛒 Uova per la vendita</label>
-          <div class="big" data-for="lq"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lq" type="number" inputmode="numeric" min="0" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div></div>
-        <div class="field"><label for="lr">🧺 Uova per la riserva</label>
-          <div class="big" data-for="lr"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lr" type="number" inputmode="numeric" min="0" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div></div>
-      </div>
-      <p class="split" id="lsplit"></p>
+      <div class="field"><label for="lq">Quante uova?</label>
+        <div class="big" data-for="lq"><button type="button" data-d="-1" aria-label="Meno">−</button><input id="lq" type="number" inputmode="numeric" min="0" max="5000" value="0"><button type="button" data-d="1" aria-label="Più">+</button></div></div>
       <div class="grid">
         <div class="field"><label for="ld">Giorno</label><input id="ld" type="date"></div>
         <div class="field"><label for="ln">Note <span class="opt">(facoltative)</span></label><input id="ln" maxlength="200"></div>
@@ -158,7 +153,6 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:10px}
     </form>
   </section>
 
-  <section class="card" id="spostaBox" hidden></section>
 
   <details class="card hist" id="histCard" hidden>
     <summary><h2 id="lTitle">I tuoi carichi</h2><span class="n" id="lCount"></span></summary>
@@ -234,7 +228,7 @@ let D = null, chart = null, allL = false, allC = false, allO = false, allOD = fa
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2400); }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TK,...body})}).then(r=>r.json());
 const WA = OviAvvisa($('waCard'), post, { canOrder: () => D && D.ruolo === 'intermedio', reload: () => load() });
-const STOCK = OviOrd.stock($('availBox'), post, () => load(), { sposta: $('spostaBox'), mano: $('manoBox') });
+const STOCK = OviOrd.stock($('availBox'), post, () => load(), { mano: $('manoBox') });
 
 async function load(){
   try{
@@ -249,16 +243,16 @@ function render(){
   const inter = D.ruolo === 'intermedio';
   $('title').textContent = 'Ciao ' + String(D.nome).split(' ')[0] + '!';
   $('badge').textContent = inter ? 'Uova, costi e grafico' : 'Carico uova';
-  STOCK.update(D); $('availBox').hidden = false; $('manoBox').hidden = false; $('spostaBox').hidden = false; split();
+  STOCK.update(D); $('availBox').hidden = false; $('manoBox').hidden = false;
   WA.update(D);
   $('loadCard').hidden = false;
   $('lTitle').textContent = inter ? '📋 Storico carichi (di tutti)' : '📋 I tuoi carichi';
   $('histCard').hidden = false;
   const L = [...D.loads].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins));
   const lv = allL ? L : L.slice(0,8);
-  const SH = (D.shifts||[]).filter(x=>inter || x.utente===D.nome).map(x=>({...x, sh:true}));
+  const SH = [];
   const LS = [...L, ...SH].sort((a,b)=>(b.data+b.ins).localeCompare(a.data+a.ins)), lsv = allL ? LS : LS.slice(0,8);
-  $('loads').innerHTML = lsv.map(l=>`<div class="it"><span class="d">${dIt(l.data)}</span><span>${l.sh?`<span class="dst r">↔️ ${l.dest==='sposta-r'?'vendita → riserva':'riserva → vendita'}</span>`:`<span class="dst ${l.dest==='riserva'?'r':''}">${l.dest==='riserva'?'riserva':'vendita'}</span>`} ${inter?esc(l.utente):''}${l.note?` <span class="w">${esc(l.note)}</span>`:''}</span><b>${l.uova} uova</b>${l.utente===D.nome?`<button class="x" data-del="load" data-id="${esc(l.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun carico.</p>';
+  $('loads').innerHTML = lsv.map(l=>`<div class="it"><span class="d">${dIt(l.data)}</span><span>${inter?esc(l.utente):''}${l.note?` <span class="w">${esc(l.note)}</span>`:''}</span><b>${l.uova} uova</b>${l.utente===D.nome?`<button class="x" data-del="load" data-id="${esc(l.id)}" aria-label="Cancella">×</button>`:'<span></span>'}</div>`).join('') || '<p class="empty">Ancora nessun carico.</p>';
   $('lmore').hidden = allL || LS.length <= 8;
   $('lCount').textContent = L.length === 1 ? '1 carico' : L.length + ' carichi';
   if (!inter) return;
@@ -275,21 +269,21 @@ function render(){
 
 // ----- carico uova -----
 $('ld').value = today(); $('cd').value = today(); $('hd').value = today();
-// due campi: uova per la vendita e uova per la riserva
+// campo uova da caricare
 const nv = id => Math.max(0, parseInt($(id).value,10)||0);
-function split(){ const v = nv('lq'), r = nv('lr'); $('lsplit').innerHTML = v + r ? `Totale: <b>${v + r}</b> uova` : ''; }
+function split(){}
 document.querySelectorAll('#fl .big').forEach(g => g.onclick = e => { const b=e.target.closest('button'); if(!b) return; const i=$(g.dataset.for); i.value = Math.max(0,(+i.value||0) + +b.dataset.d); split(); });
-$('lq').oninput = split; $('lr').oninput = split;
+
 $('fl').onsubmit = async e => {
   e.preventDefault();
-  const v = nv('lq'), r = nv('lr'), n = v + r;
-  if (n<1) return toast('Scrivi quante uova per la vendita e/o per la riserva');
+  const n = nv('lq');
+  if (n<1) return toast('Scrivi quante uova');
   const b=$('lgo'); b.disabled=true;
   try{
-    const j = await post({action:'load', uova:n, riserva:r, data:$('ld').value, note:$('ln').value.trim()});
+    const j = await post({action:'load', uova:n, data:$('ld').value, note:$('ln').value.trim()});
     if(!j.ok) throw new Error(j.error);
-    toast(`Aggiunte ${n} uova: ${v} in vendita, ${r} in riserva`);
-    $('lq').value=0; $('lr').value=0; $('ln').value=''; await load();
+    toast(`Aggiunte ${n} uova. Disponibili: ${j.available}`);
+    $('lq').value=0; $('ln').value=''; await load();
   }catch(x){ toast(x.message||'Non salvato, riprova'); }
   finally{ b.disabled=false; }
 };
