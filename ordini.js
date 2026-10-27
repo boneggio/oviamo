@@ -15,6 +15,17 @@
 .oo-e b{font-family:Fraunces,Georgia,serif;font-size:1.05rem;display:block}
 .oo-e small{color:var(--muted);font-size:.78rem}
 .oo-nt{font-size:.85rem;color:var(--muted);font-style:italic}
+.oo-s2{display:flex;flex-wrap:wrap;gap:6px}
+.oo-s2 span{font-size:.86rem;padding:5px 10px;border-radius:10px;background:var(--bg)}
+.oo-s2 .r{color:var(--err)}.oo-s2 .ok{color:var(--brand)}.oo-s2 b{color:var(--ink)}
+.om{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
+.om-h{display:grid;grid-template-columns:1fr auto auto auto 14px;gap:10px;align-items:center;width:100%;padding:10px 12px;border:0;background:none;color:var(--ink);font:500 .9rem Inter,sans-serif;text-align:left;cursor:pointer}
+.om-h b{font-weight:700}.om-h .om-d{color:var(--muted);font-size:.82rem;white-space:nowrap}.om-h .om-u{white-space:nowrap}.om-h .om-e{font-weight:700;white-space:nowrap}
+.om-h .om-c{color:var(--muted);transition:transform .2s}.om.op .om-h .om-c{transform:rotate(90deg)}
+.om.op .om-h{border-bottom:1px solid var(--line);background:var(--bg)}
+.om>.oo{border:0;border-radius:0}
+.om>.oo>.oo-h b.nm,.om>.oo>.oo-h .oo-e{display:none}
+@media (max-width:480px){.om-h{grid-template-columns:1fr auto 14px;row-gap:2px}.om-h .om-d{grid-column:1;grid-row:2}.om-h .om-u{grid-column:2;grid-row:2;text-align:right;color:var(--muted);font-size:.82rem}.om-h .om-e{grid-column:2;grid-row:1}.om-h .om-c{grid-column:3;grid-row:1/3}}
 .oo-s{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .oo-b{border-radius:12px;padding:8px 10px;background:var(--bg);display:grid;gap:4px;font-size:.84rem}
 .oo-b .k{color:var(--muted);font-size:.76rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
@@ -194,6 +205,15 @@
     </form>`;
   }
 
+  /** Riga compatta: nome, data, uova, valore; toccandola si apre la scheda completa */
+  const miniOpen = new Set();
+  const mini = (o, opt) => {
+    const op = miniOpen.has(o.id) || forms.has(o.id);
+    const d = o.perIl ? 'per ' + new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' }) : dIt(o.data);
+    return `<div class="om${op ? ' op' : ''}" data-mid="${esc(o.id)}"><button type="button" class="om-h" data-tg="${esc(o.id)}" aria-expanded="${op}">
+      <span class="om-n"><b>${esc(o.nome)} ${esc(o.cognome || '')}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : ''}${o.mano ? ' <span class="oo-badge mn">🤝</span>' : ''}</span>
+      <span class="om-d">${d}</span><span class="om-u">${uTxt(o.uova)}</span><span class="om-e">${eur(o.euro)}</span><span class="om-c">▸</span></button>${op ? row(o, opt) : ''}</div>`;
+  };
   /** Un ordine "subito" si può rifiutare finché non è iniziata consegna o pagamento */
   const canRej = o => (o.stato || 'ok') === 'ok' && !o.perIl && !cons(o) && paid(o) <= 0.005;
   function row(o, opt) {
@@ -207,10 +227,7 @@
     <div class="oo-w">${per}${dIt(o.data)}${qty ? ` · ${qty}` : ''}${o.telefono ? ` · <a href="tel:${esc(o.telefono)}">${esc(o.telefono)}</a>` : ''}</div></div>
     <div class="oo-e"><b>${eur(o.euro)}</b><small>${uTxt(o.uova)}</small></div></div>
   ${o.note ? `<div class="oo-nt">“${esc(o.note)}”</div>` : ''}
-  <div class="oo-s">
-    <div class="oo-b"><span class="k">🥚 Uova</span><span class="v">consegnate <b>${c}</b> di ${o.uova}</span><span class="oo-bar"><i style="width:${o.uova ? c / o.uova * 100 : 100}%"></i></span>${L ? `<span class="r">da consegnare: ${uTxt(L)}</span>` : '<span class="ok">✓ tutte consegnate</span>'}</div>
-    <div class="oo-b"><span class="k">💶 Soldi</span><span class="v">pagati <b>${eur(p)}</b> di ${eur(o.euro)}</span><span class="oo-bar"><i style="width:${o.euro ? Math.min(100, p / o.euro * 100) : 100}%"></i></span>${R > 0.005 ? `<span class="r">da pagare: ${eur(R)}</span>` : '<span class="ok">✓ tutto pagato</span>'}</div>
-  </div>
+  <div class="oo-s2"><span class="${L ? 'r' : 'ok'}">🥚 Consegnate <b>${c}</b> di ${o.uova}${L ? '' : ' ✓'}</span><span class="${R > 0.005 ? 'r' : 'ok'}">💶 Pagati <b>${eur(p)}</b> di ${eur(o.euro)}${R > 0.005 ? '' : ' ✓'}</span></div>
   ${o.stato !== 'rifiutata' ? `<div class="oo-k">
     <button type="button" class="oo-kd ${L ? '' : 'on'}" data-oa="kdlv" aria-pressed="${!L}" title="${L ? 'Segna tutte le uova come consegnate' : 'Togli la consegna'}"><span class="ck">${L ? '' : '✓'}</span>Consegnati</button>
     <div class="oo-kp ${R > 0.005 ? '' : 'on'}"><span>${R > 0.005 ? (usedM(o).length ? 'Pagato in parte' : 'Pagamento') : `✓ Pagato <span class="mt">${usedM(o).map(m => ({ contanti: 'in contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ')}</span>`}</span>${['contanti', 'satispay', 'paypal'].map(m => `<button type="button" data-oa="kpay" data-m="${m}" class="${usedM(o).includes(m) ? 'on' : ''}" aria-pressed="${usedM(o).includes(m)}" title="${R > 0.005 ? 'Pagato ' + MNAME[m] : usedM(o).includes(m) ? 'Togli il pagamento' : 'Cambia: pagato ' + MNAME[m]}" aria-label="Pagato ${MNAME[m]}">${ICO[m]}</button>`).join('')}</div>
@@ -220,12 +237,10 @@
     : o.stato === 'rifiutata' ? (o.perIl ? `<div class="oo-dec rej"><span>Richiesta rifiutata</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="attesa">Rimetti in attesa</button></div></div>`
       : `<div class="oo-dec rej"><span>Ordine rifiutato</span><div class="oo-a"><button type="button" class="ob" data-oa="dec" data-v="ok">Annulla il rifiuto</button></div></div>`) : ''}
   ${o.stato === 'rifiutata' ? (waConf(o) ? `<div class="oo-a"><a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a></div>` : '')
-    : f ? formHtml(o, f) : !done(o) || waConf(o) ? `<div class="oo-a">
-    ${waConf(o) ? `<a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a>` : ''}
+    : f ? formHtml(o, f) : `${L || R > 0.005 ? `<div class="oo-a">
     ${L ? `<button type="button" class="ob pr" data-oa="open" data-mode="dlv">🥚 Consegna uova</button>` : ''}
     ${R > 0.005 ? `<button type="button" class="ob pr" data-oa="open" data-mode="pay">💶 Pagamento</button>` : ''}
-    ${L && R > 0.005 ? `<button type="button" class="ob" data-oa="all" data-m="contanti">✓ Tutto, in contanti</button><button type="button" class="ob" data-oa="all" data-m="satispay">✓ Tutto, Satispay</button><button type="button" class="ob" data-oa="all" data-m="paypal">✓ Tutto, PayPal</button>` : ''}
-  </div>` : ''}
+  </div>` : ''}${waConf(o) ? `<div class="oo-a"><a class="ob wa" href="${esc(waConf(o))}" target="_blank" rel="noopener">${waLabel(o)}</a></div>` : ''}`}
   ${canRej(o) ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="dec" data-v="rifiutata">✕ Rifiuta ordine</button></div>` : ''}
   </div></details>
   ${opt.del ? `<div class="oo-a"><button type="button" class="oo-lk oo-del" data-oa="del">🗑️ Elimina</button></div>` : ''}
@@ -244,6 +259,9 @@
     const redraw = id => { const o = getOrder(id), card = el.querySelector(`[data-oid="${CSS.escape(id)}"]`); if (o && card) { card.outerHTML = row(o, { del: card.dataset.del === '1' }); } };
     const autoE = (o, f) => { if (!f.eTouched) f.e = f.mode === 'pay' && !f.n ? rest(o) : Math.min(rest(o), r2(f.n * unit(o))); };
     el.addEventListener('click', e => {
+      const tg = e.target.closest('[data-tg]');
+      if (tg && el.contains(tg)) { const id = tg.dataset.tg, o = getOrder(id), w = tg.closest('[data-mid]'); if (!o || !w) return;
+        miniOpen.has(id) ? (miniOpen.delete(id), forms.delete(id)) : miniOpen.add(id); w.outerHTML = mini(o, { del: true }); return; }
       const b = e.target.closest('[data-oa]'); if (!b || !el.contains(b)) return;
       const card = b.closest('[data-oid]'), id = card && card.dataset.oid, o = getOrder(id); if (!o) return;
       const a = b.dataset.oa, f = forms.get(id);
@@ -348,11 +366,14 @@
       // riserva sotto zero: spiega da dove viene
       const w = el.querySelector('[data-n=w]'), RO = (D.orders || []).filter(o => o.pool === 'riserva' && o.stato === 'ok' && !o.eliminato);
       w.hidden = r >= 0;
-      const tot = RO.reduce((t, o) => t + o.uova, 0);
+      const tot = RO.reduce((t, o) => t + o.uova, 0), out = RO.filter(o => cons(o) > 0), open = RO.filter(o => left(o) > 0);
+      const nm = o => `${esc(o.nome)} ${esc(o.cognome || '')}`.trim();
+      const usc = out.reduce((t, o) => t + cons(o), 0), serv = open.reduce((t, o) => t + left(o), 0);
       if (r < 0) w.innerHTML = !RO.length ? `⚠️ <b>Mancano ${-r} uova in riserva:</b> ci sono richieste confermate senza uova messe da parte. Carica uova in riserva o spostale dalla vendita.`
-        : `⚠️ <b>Mancano ${-r} uova in riserva.</b> In riserva sono entrate <b>${tot + r}</b> uova, ma ne servono <b>${tot}</b> per: ` +
-          RO.map(o => `${esc(o.nome)} ${esc(o.cognome || '')} (${o.uova}${o.perIl ? ', per il ' + dIt(o.perIl) : o.mano ? ', a mano' : o.contatto ? ', rubrica' : ''})`).join(', ') +
-          `. Carica uova in riserva o spostale dalla vendita.`;
+        : `⚠️ <b>Mancano ${-r} uova in riserva.</b> In riserva sono entrate <b>${tot + r}</b> uova.` +
+          (out.length ? ` Ne sono già uscite <b>${usc}</b> (${out.map(o => `${nm(o)} ${cons(o)}`).join(', ')}).` : '') +
+          (open.length ? ` Ne servono ancora <b>${serv}</b> per: ${open.map(o => `${nm(o)} ${left(o)}${o.perIl ? ' per il ' + dIt(o.perIl) : ''}`).join(', ')}.` : '') +
+          ` Carica uova in riserva o spostale dalla vendita.`;
     };
     const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
     [...new Set([el, elS, elM])].forEach(c => {
@@ -381,5 +402,5 @@
     return { update: draw };
   }
 
-  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, waLabel, waPrompt, fill, TPL, stock };
+  window.OviOrd = { row, bind, paid, rest, cons, left, done, eur, waConf, waText, waLabel, waPrompt, fill, TPL, stock, mini };
 })();
