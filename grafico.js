@@ -10,7 +10,7 @@ const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 
 const CSS = `
 .oc-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
-.oc-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.oc-seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .oc-seg button{border:0;background:transparent;color:var(--ink);padding:8px 12px;font:500 .88rem Inter,sans-serif;cursor:pointer}
 .oc-seg button.on{background:var(--brand);color:#fff}
 .oc-bar select,.oc-bar input{width:auto;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:.9rem}
@@ -24,7 +24,15 @@ const CSS = `
 .oc-svg{width:100%;height:auto;display:block}
 .oc-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin-top:6px}
 .oc-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.oc-empty{color:var(--muted);text-align:center;padding:30px 0}`;
+.oc-empty{color:var(--muted);text-align:center;padding:30px 0}
+.oc-tw{overflow-x:auto;margin-top:12px}
+.oc-t{width:100%;border-collapse:collapse;font-size:.84rem;min-width:520px}
+.oc-t th,.oc-t td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.oc-t th:first-child,.oc-t td:first-child{text-align:left}
+.oc-t th{color:var(--muted);font-weight:600;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em}
+.oc-t .pos{color:var(--brand);font-weight:700}.oc-t .neg{color:var(--err);font-weight:700}
+.oc-t tr.cur td{background:color-mix(in srgb,var(--yolk) 18%,transparent)}
+.oc-note{font-size:.8rem;color:var(--muted);margin-top:6px}`;
 
 window.OviChart = function(el, data){
   if (!document.getElementById('oc-css')){ const s=document.createElement('style'); s.id='oc-css'; s.textContent=CSS; document.head.appendChild(s); }
@@ -36,7 +44,7 @@ window.OviChart = function(el, data){
 
   el.innerHTML = `
     <div class="oc-bar">
-      <div class="oc-seg"><button data-m="anno" class="on">Anno</button><button data-m="mese">Mese</button><button data-m="periodo">Periodo</button></div>
+      <div class="oc-seg"><button data-m="anno" class="on">Anno</button><button data-m="mese">Mese</button><button data-m="periodo">Periodo</button><button data-m="mangime">🌾 Tra un mangime e l'altro</button></div>
       <select class="oc-y" aria-label="Anno">${years.map(y=>`<option>${y}</option>`).join('')}</select>
       <select class="oc-m" aria-label="Mese" hidden>${MESI_L.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('')}</select>
       <span class="oc-p" hidden><input type="date" class="oc-from" aria-label="Dal"> → <input type="date" class="oc-to" aria-label="Al"></span>
@@ -74,7 +82,51 @@ window.OviChart = function(el, data){
     let k=null; for (const b of B){ if (b.k<=date) k=b.k; else break; } return k;
   }
 
+  /** Periodi tra una spesa di mangime e la successiva: costi e ricavi di ciascun periodo */
+  function drawFeed(){
+    q('.oc-y').hidden = true; q('.oc-m').hidden = true; q('.oc-p').hidden = true; q('.oc-h').hidden = true;
+    const d10 = x => String(x.data||'').slice(0,10), today = iso(now);
+    const isFeed = c => /mangim/i.test(c.descr||'');
+    const days = [...new Set(D.costs.filter(isFeed).map(d10))].sort();
+    q('.oc-leg').innerHTML = '<span><i style="background:var(--brand-2)"></i>Ricavi (vendite incassate)</span><span><i style="background:#d9822b"></i>Costi (mangime + altre spese)</span>';
+    if (!days.length){ q('.oc-k').innerHTML=''; q('.oc-plot').innerHTML = '<div class="oc-empty">Nessuna spesa di mangime: aggiungi un costo con la parola "mangime" nella descrizione.</div>'; return; }
+    const sum = (l,f) => l.reduce((t,x)=>t+(+x[f]||0),0);
+    const short = s => { const p=s.split('-'); return +p[2]+'/'+(+p[1]); };
+    const P = days.map((a,i) => {
+      const b = days[i+1] || null, inP = x => { const d=d10(x); return d>=a && (b ? d<b : d<=today); };
+      const C = D.costs.filter(inP), feed = sum(C.filter(c=>isFeed(c) && d10(c)===a),'euro'), altri = sum(C,'euro') - feed;
+      const S = D.sales.filter(inP), ric = sum(S,'euro'), uv = Math.round(sum(S,'uova')*10)/10, rac = sum(D.loads.filter(inP),'uova');
+      const end = b || today, gg = Math.max(1, Math.round((new Date(end+'T12:00')-new Date(a+'T12:00'))/864e5));
+      return { a, b, cur: !b, l: short(a)+(b ? '–'+short(b) : '→oggi'), feed, altri, cost: feed+altri, ric, uv, rac, gg, m: ric-feed-altri };
+    });
+    const c = P[P.length-1];
+    q('.oc-k').innerHTML = `
+      <div><small>Periodo in corso (dal ${short(c.a)}, ${c.gg} giorni)</small><b>${eur(c.ric)}</b><small>ricavi</small></div>
+      <div><small>Costi del periodo</small><b>${eur(c.cost)}</b><small>mangime ${eur(c.feed)}${c.altri?` + altro ${eur(c.altri)}`:''}</small></div>
+      <div><small>Margine del periodo</small><b class="${c.m>=0?'pos':'neg'}">${eur(c.m)}</b><small>${c.m>=0?'il mangime è ripagato':'mancano '+eur(-c.m)+' per ripagarlo'}</small></div>
+      <div><small>Uova vendute / raccolte</small><b>${c.uv} / ${c.rac}</b><small>nel periodo</small></div>`;
+    // grafico a barre: ricavi e costi per periodo
+    const W = Math.max(320, Math.min(900, el.clientWidth||640)), H = W<500 ? 230 : 260, l=48, r=10, t=12, bt=28, pw=W-l-r, ph=H-t-bt;
+    const hi = Math.max(1, ...P.map(x=>Math.max(x.ric,x.cost)));
+    const nice = v => { const p=Math.pow(10,Math.floor(Math.log10(v||1))), f=v/p; return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p; };
+    const step = nice(hi/4), top = Math.ceil(hi/step)*step, nt = Math.round(top/step);
+    const y = v => t + ph - v/top*ph, bw = pw/P.length, gw = Math.max(6, Math.min(34, bw*.3));
+    let g = '';
+    for (let i=0;i<=nt;i++){ const v=step*i; g += `<line x1="${l}" x2="${W-r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${eur0(v)}</text>`; }
+    P.forEach((x,i)=>{ const cx = l + bw*i + bw/2, tip = `${x.l}: ricavi ${eur(x.ric)}, costi ${eur(x.cost)}, margine ${eur(x.m)}`;
+      if (x.ric) g += `<rect x="${cx-gw-2}" y="${y(x.ric)}" width="${gw}" height="${y(0)-y(x.ric)}" rx="3" fill="var(--brand-2)"><title>${tip}</title></rect>`;
+      if (x.cost) g += `<rect x="${cx+2}" y="${y(x.cost)}" width="${gw}" height="${y(0)-y(x.cost)}" rx="3" fill="#d9822b"><title>${tip}</title></rect>`;
+      g += `<text x="${cx}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${x.l}</text>`; });
+    q('.oc-plot').innerHTML = `<svg class="oc-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ricavi e costi tra una spesa di mangime e l'altra">${g}</svg>
+      <div class="oc-tw"><table class="oc-t"><thead><tr><th>Periodo</th><th>Giorni</th><th>Mangime</th><th>Altri costi</th><th>Ricavi</th><th>Uova vendute</th><th>Margine</th></tr></thead><tbody>
+      ${[...P].reverse().map(x=>`<tr class="${x.cur?'cur':''}"><td>${x.l}${x.cur?' (in corso)':''}</td><td>${x.gg}</td><td>${eur(x.feed)}</td><td>${eur(x.altri)}</td><td>${eur(x.ric)}</td><td>${x.uv}</td><td class="${x.m>=0?'pos':'neg'}">${eur(x.m)}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="oc-note">Ogni periodo va dal giorno di una spesa di mangime al giorno prima della spesa successiva. Le spese di mangime si riconoscono dalla parola "mangime" nella descrizione del costo.</p>`;
+  }
+
   function draw(){
+    if (st.mode==='mangime') return drawFeed();
+    q('.oc-leg').innerHTML = '<span><i style="background:var(--brand-2)"></i>Vendite incassate</span><span><i style="background:#d9822b"></i>Costi</span><span><i style="background:var(--yolk);height:3px"></i>Margine cumulato</span>';
     q('.oc-y').hidden = st.mode==='periodo'; q('.oc-m').hidden = st.mode!=='mese'; q('.oc-p').hidden = st.mode!=='periodo';
     const [a,b,unit] = range();
     const inR = x => { const d=String(x.data||'').slice(0,10); return d>=a && d<=b; };
