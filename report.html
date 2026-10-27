@@ -481,8 +481,8 @@ function render(){
 
 const waBtn = o => ''; const waBtnOld = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">${OviOrd.waLabel(o, true)}</a></div>` : ''; };
 const openDet = new Set();
-const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
-const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
+const partPay = o => { if (o.stato==='rifiutata') return ''; const p = OviOrd.paid(o), r = OviOrd.rest(o); return r > 0.005 ? `<div class="part">da avere <b>${eur(r)}</b>${p > 0.005 ? `<br><small>pagati ${eur(p)}</small>` : ''}</div>` : ''; };
+const partDlv = o => { if (o.stato==='rifiutata') return ''; const c = OviOrd.cons(o), l = OviOrd.left(o); return l ? `<div class="part">da dare <b>${l}</b>${c ? `<br><small>date ${c}</small>` : ''}</div>` : ''; };
 function renderTrash(){
   const T = D.trash || [];
   $('trN').textContent = T.length ? '(' + T.length + ')' : '';
@@ -515,7 +515,7 @@ function renderOrders(){
     <td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato">${partDlv(o)}</td>
   </tr>${openDet.has(o.id)?`<tr class="detr"><td colspan="8">${OviOrd.row(o, { del: true })}</td></tr>`:''}`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
   const s = (f)=>V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+(+o[f]||0),0);
-  $('ptf').innerHTML = V.length ? `<tr><td></td><td colspan="3">${V.length} prenotazioni</td><td class="n">${s('uova')}</td><td class="n">${eur(s('euro'))}</td><td colspan="2"></td></tr>` : '';
+  $('ptf').innerHTML = V.length ? `<tr><td></td><td colspan="3">${V.length} prenotazioni</td><td class="n">${s('uova')}</td><td class="n">${eur(s('euro'))}</td><td class="c">${(()=>{const r=V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+OviOrd.rest(o),0);return r>0.005?`<div class="part">da avere <b>${eur(r)}</b></div>`:''})()}</td><td class="c">${(()=>{const l=V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+OviOrd.left(o),0);return l?`<div class="part">da dare <b>${l}</b></div>`:''})()}</td></tr>` : '';
   $('all').checked = V.length && V.every(o=>sel.has(o.id));
   $('selBar').hidden = !sel.size; $('selN').textContent = sel.size + (sel.size===1?' selezionata':' selezionate');
 }
