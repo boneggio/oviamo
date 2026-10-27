@@ -61,6 +61,13 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand-2
 .stockw{margin-bottom:14px;max-width:640px}
 .kpi.hl .sub{color:inherit;opacity:.85}
 details.pren{border:2px solid var(--brand-2);border-radius:16px;overflow:hidden}
+.pbox{border:2px solid var(--brand-2);border-radius:16px;padding:14px 18px;margin-bottom:14px;background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
+.pbox h2{margin:0 0 10px;font-size:1.25rem}
+.pbox .pb span{font-size:.9rem;padding:7px 14px}
+.pbox .pb span.on{outline:3px solid var(--brand);outline-offset:1px}
+.plist{border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.olh{display:flex;align-items:center;gap:10px;margin-bottom:10px}.olh h2{margin:0;flex:1;font-size:1.15rem}
+.olx{border:1px solid var(--line);background:var(--bg);border-radius:50%;width:34px;height:34px;cursor:pointer;color:var(--muted)}
 details.pren>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 48px 14px 18px;position:relative;background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
 details.pren>summary::-webkit-details-marker{display:none}
 details.pren>summary h2{margin:0;font-size:1.25rem}
@@ -248,9 +255,9 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
       <!-- PRENOTAZIONI -->
       <div data-p="pren">
         <div class="stockw" id="stockBox"></div>
-        <details class="pren" id="prenBox">
-        <summary><h2>🧺 Prenotazioni</h2><span class="pb" id="obadge"></span></summary>
-        <div class="in">
+        <div class="pbox" id="prenBox"><h2>🧺 Prenotazioni</h2><span class="pb" id="obadge"></span></div>
+        <div class="plist" id="prenList" hidden>
+        <div class="olh"><h2 id="plTitle">Prenotazioni</h2><button type="button" class="olx" id="plClose" aria-label="Chiudi l'elenco">✕</button></div>
         <div class="bar">
           <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="att">Da confermare<span class="c" id="cAtt" style="margin-left:4px"></span></button></div>
           <select id="py" aria-label="Anno"></select>
@@ -275,7 +282,6 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
           <div class="tw"><table><thead><tr><th>Nome</th><th class="n">Uova</th><th class="n">€</th></tr></thead><tbody id="trb"></tbody></table></div>
         </details>
         </div>
-        </details>
         <div class="stockw" id="manoBox" style="margin-top:14px"></div>
       </div>
 
@@ -493,7 +499,7 @@ function renderTrash(){
 }
 function ordersView(){
   const y = $('py').value, s = $('ps').value.trim().toLowerCase();
-  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' && !OviOrd.done(o) : true)
+  return D.orders.filter(o => (!y || o.data.startsWith(y)) && (pf==='np' ? OviOrd.rest(o) > 0.005 && o.stato==='ok' : pf==='nc' ? OviOrd.cons(o) < o.uova && o.stato==='ok' : pf==='att' ? o.stato==='attesa' && !OviOrd.done(o) : pf==='ap' ? o.stato!=='rifiutata' && !OviOrd.done(o) : true)
     && (!s || (o.nome+' '+o.cognome).toLowerCase().includes(s))).sort((a,b)=>b.data.localeCompare(a.data));
 }
 function renderOrders(){
@@ -504,7 +510,8 @@ function renderOrders(){
   const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; $('cAtt').textContent = na || '';
   { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
       dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
-    $('obadge').innerHTML = [aperte ? `<span data-go="">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot" data-go="att">${na} da confermare</span>` : '', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
+    $('obadge').innerHTML = [`<span data-go="">📋 Tutte</span>`, aperte ? `<span data-go="ap">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot" data-go="att">${na} da confermare</span>` : '', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
+  document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', !$('prenList').hidden && x.dataset.go === pf)); $('plTitle').textContent = PTIT[pf] || 'Prenotazioni';
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
     <td class="d">${dIt(o.data)}${o.perIl?`<div class="peril">per ${dShort(o.perIl)}</div>`:''}</td>
@@ -582,8 +589,13 @@ $('tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; ta
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('[data-p]').forEach(p=>p.hidden = p.dataset.p!==tab); if(tab==='gra'&&chart) chart.update({}); if(tab==='sic') secLoad(); if(tab==='msg') tplRender(); };
 // clic sui riepiloghi della tendina: apre e mostra l'elenco giusto
-$('obadge').onclick = e => { const s=e.target.closest('[data-go]'); if(!s) return; e.preventDefault(); $('prenBox').open = true;
-  $('pf').querySelector(`[data-f="${s.dataset.go}"]`).click(); setTimeout(()=>$('pf').scrollIntoView({block:'start',behavior:'smooth'}),50); };
+const PTIT = {'':'Tutte le prenotazioni', ap:'Da sistemare', att:'Da confermare', nc:'Da consegnare', np:'Da incassare'};
+const showList = go => { const L = $('prenList'); if (go === null) { L.hidden = true; } else { L.hidden = false; pf = go;
+    document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f===pf)); renderOrders(); }
+  document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', !L.hidden && x.dataset.go === pf)); $('plTitle').textContent = PTIT[pf] || 'Prenotazioni'; };
+$('obadge').onclick = e => { const s=e.target.closest('[data-go]'); if(!s) return;
+  showList(!$('prenList').hidden && pf === s.dataset.go ? null : s.dataset.go); if (!$('prenList').hidden) setTimeout(()=>$('prenList').scrollIntoView({block:'start',behavior:'smooth'}),50); };
+$('plClose').onclick = () => showList(null);
 $('pf').onclick = e => { const b=e.target.closest('button'); if(!b) return; pf=b.dataset.f;
   document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x===b)); renderOrders(); };
 $('py').onchange = renderOrders; $('ps').oninput = renderOrders;
@@ -771,7 +783,7 @@ document.addEventListener('click', async e => {
       if(!j.ok){ b.disabled = false; if(j.short) return; throw new Error(j.error); }
       if (d.decide==='ok' && pf==='att'){ pf=''; document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f==='')); }
       await load();
-      $('prenBox').open = true;
+      $('prenList').hidden = false;
       const row = document.querySelector(`#ptb [data-sel="${CSS.escape(o.id)}"]`); if (row){ const tr=row.closest('tr'); tr.classList.add('flash'); tr.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>tr.classList.remove('flash'),2500); }
       toast(d.decide==='ok' ? 'Confermata ✓ ora è tra le prenotazioni da gestire' : d.decide==='rifiutata' ? 'Rifiutata' : 'Rimessa in attesa');
       if (d.decide!=='attesa') OviOrd.waPrompt({...o, stato:d.decide});
