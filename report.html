@@ -237,7 +237,6 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
       <p class="hint">Per cambiare chat o usare un gruppo: aggiungi @oviamo_bot al gruppo, scrivi <b>/start@oviamo_bot</b> nel gruppo, poi premi "Collega l'ultima chat".</p>
     </section>
 
-    <section class="card" id="waCard" hidden></section>
 
     <section class="card">
       <nav class="tabs" id="tabs">
@@ -248,7 +247,6 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <button data-t="gal">Galline<span class="c" id="cGal">–</span></button>
         <button data-t="ute">Utenti<span class="c" id="cUte">0</span></button>
         <button data-t="gra">Grafico</button>
-        <button data-t="msg">💬 Messaggi</button>
         <button data-t="sic">🔐 Sicurezza</button>
       </nav>
 
@@ -259,7 +257,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <div class="plist" id="prenList" hidden>
         <div class="olh"><h2 id="plTitle">Prenotazioni</h2><button type="button" class="olx" id="plClose" aria-label="Chiudi l'elenco">✕</button></div>
         <div class="bar">
-          <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da pagare</button><button data-f="nc">Da consegnare</button><button data-f="att">Da confermare<span class="c" id="cAtt" style="margin-left:4px"></span></button></div>
+          <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da pagare</button><button data-f="nc">Da consegnare</button></div>
           <select id="py" aria-label="Anno"></select>
           <input id="ps" type="search" placeholder="Cerca nome…" style="max-width:180px">
           <span class="sp"></span>
@@ -380,7 +378,6 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 
 <script src="grafico.js"></script>
 <script src="ordini.js"></script>
-<script src="avvisa.js"></script>
 <script>
 const SCRIPT_URL = '/api';   // motore su Cloudflare (functions/api.js)
 const SITE = location.origin.startsWith('http') ? location.origin : 'https://oviamo.boneggio.it';
@@ -404,12 +401,11 @@ function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on')
 const hdr = () => ({'Content-Type':'text/plain;charset=utf-8','X-Ovi-Session':SES});
 function expired(){ store.set('ovs',null); SES=''; $('app').hidden=true; $('act').hidden=true; $('login').hidden=false; $('lerr').hidden=false; $('lerr').textContent='Accesso scaduto: entra di nuovo.'; }
 const post = body => fetch(SCRIPT_URL,{method:'POST',headers:hdr(),body:JSON.stringify(body)}).then(r=>r.json()).then(j=>{ if(j && j.auth) expired(); return j; });
-const WA = OviAvvisa($('waCard'), post, { canOrder: () => true, reload: () => load() });
 const STOCK = OviOrd.stock($('stockBox'), post, () => load(), { mano: $('manoBox') });
 const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'});
 let calM = null, calSel = '';
 const stBadge = o => o.stato==='attesa' ? '<span class="stb att">Da confermare</span>' : o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
-const decBtns = o => o.stato==='attesa' ? `<div class="dec"><button class="yes" data-decide="ok" data-id="${esc(o.id)}">✓ Conferma</button><button class="no" data-decide="rifiutata" data-id="${esc(o.id)}">✕ Rifiuta</button></div>`
+const decBtns = o => ''; const decBtnsOld = o => o.stato==='attesa' ? `<div class="dec"><button class="yes" data-decide="ok" data-id="${esc(o.id)}">✓ Conferma</button><button class="no" data-decide="rifiutata" data-id="${esc(o.id)}">✕ Rifiuta</button></div>`
   : o.stato==='rifiutata' ? (o.perIl ? `<div class="dec"><button data-decide="attesa" data-id="${esc(o.id)}">Rimetti in attesa</button></div>` : `<div class="dec"><button data-decide="ok" data-id="${esc(o.id)}">Annulla il rifiuto</button></div>`) : '';
 const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Boolean).join(' + ');
 
@@ -470,7 +466,6 @@ function render(){
     ['Margine', `<span class="${inc-costi<0?'neg':''}">${eur(inc-costi)}</span>`]
   ].map(([l,v,c,x])=>`<div class="card kpi ${c||''}"><small>${l}</small><b>${v}</b>${x||''}</div>`).join('');
 
-  WA.update(D);
   $('open').checked = D.settings.open; $('msg').value = D.settings.msg || '';
   $('openL').textContent = D.settings.open ? 'Prenotazioni aperte' : 'Prenotazioni chiuse';
   $('setHint').textContent = !D.settings.open ? 'La pagina mostra il messaggio di chiusura.'
@@ -484,7 +479,7 @@ function render(){
   if (chart) chart.update(cd); else chart = OviChart($('chart'), cd);
 }
 
-const waBtn = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">${OviOrd.waLabel(o, true)}</a></div>` : ''; };
+const waBtn = o => ''; const waBtnOld = o => { const u = OviOrd.waConf(o); return u ? `<div style="margin-top:5px"><a class="wab" href="${esc(u)}" target="_blank" rel="noopener" title="Scrivi su WhatsApp">${OviOrd.waLabel(o, true)}</a></div>` : ''; };
 const openDet = new Set();
 const partPay = o => { const p = OviOrd.paid(o); return p > 0.005 && OviOrd.rest(o) > 0.005 ? `<div class="part">${eur(p)} di ${eur(o.euro)}</div>` : ''; };
 const partDlv = o => { const c = OviOrd.cons(o); return c && c < o.uova ? `<div class="part">${c} di ${o.uova}</div>` : ''; };
@@ -504,10 +499,10 @@ function renderOrders(){
   $('py').innerHTML = '<option value="">Tutti gli anni</option>' + years.map(y=>`<option ${y===cur?'selected':''}>${y}</option>`).join('');
   const V = ordersView();
   [...sel].forEach(id => { if(!D.orders.some(o=>o.id===id)) sel.delete(id); });
-  const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; $('cAtt').textContent = na || '';
+  const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; 
   { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
       dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
-    $('obadge').innerHTML = [`<span data-go="">📋 Tutte</span>`, aperte ? `<span data-go="ap">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', na ? `<span class="hot" data-go="att">${na} da confermare</span>` : '', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
+    $('obadge').innerHTML = [`<span data-go="">📋 Tutte</span>`, aperte ? `<span data-go="ap">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
   document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', !$('prenList').hidden && x.dataset.go === pf)); $('plTitle').textContent = PTIT[pf] || 'Prenotazioni';
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
