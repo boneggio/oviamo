@@ -472,7 +472,8 @@ async function order_(db, env, ctx, d) {
   }
   const s = await settings_(db), left = await available_(db);
   // (dal 27/10/26 niente più richieste da confermare: anche "per una data" è una prenotazione valida subito)
-  if (!s.open || left <= 0) return json({ ok: false, closed: true, error: s.msg || DEFAULT_MSG });
+  // "per una data" si può prenotare anche a uova finite (è un promemoria): si blocca solo se chiuso a mano
+  if (!s.open || (left <= 0 && d.tipo !== 'data')) return json({ ok: false, closed: true, error: s.msg || DEFAULT_MSG });
 
   const nome = clean(d.nome, 60), cognome = clean(d.cognome, 60);
   if (!nome || !cognome) return json({ ok: false, error: 'Nome e cognome obbligatori' });
@@ -480,7 +481,7 @@ async function order_(db, env, ctx, d) {
   const q6 = Math.max(0, Math.min(50, parseInt(d.q6, 10) || 0));
   const uova = q1 + 6 * q6;
   if (!uova) return json({ ok: false, error: 'Scegli almeno un uovo' });
-  if (uova > left) return json({ ok: false, error: 'Sono rimaste solo ' + left + ' uova disponibili.' });
+  if (d.tipo !== 'data' && uova > left) return json({ ok: false, error: 'Sono rimaste solo ' + left + ' uova disponibili.' });
   const euro = Math.round((q1 * PRICE_1 + q6 * PRICE_6) * 100) / 100;
   let perIl = '';
   if (d.tipo === 'data') {   // prenotazione per un giorno scelto (da domani a 3 mesi)
@@ -493,7 +494,7 @@ async function order_(db, env, ctx, d) {
   // inserisce solo se le uova bastano ancora (evita di prenotare due volte le stesse)
   const r = await db.prepare(`INSERT INTO orders (id, data, nome, cognome, telefono, q1, q6, uova, euro, note, per_il)
     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    WHERE ${LOADED} - ${BOOKED} >= ?`)
+    WHERE ${d.tipo === 'data' ? '1 = 1 OR ' : ''}${LOADED} - ${BOOKED} >= ?`)
     .bind(newId('p'), now_(), nome, cognome, telefono, q1, q6, uova, euro, note, perIl, uova).run();
   if (!r.meta.changes) {
     const l2 = await available_(db);
