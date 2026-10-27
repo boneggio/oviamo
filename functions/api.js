@@ -34,7 +34,8 @@ const dIt = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('it-IT', { we
 // due "mucchi" di uova: VENDITA (prenotabili sul sito) e RISERVA (richieste a data, rubrica, date a mano).
 // (dal 27/10/26 di nuovo un solo "magazzino": la riserva è stata tolta. loads.dest e orders.pool restano solo come storico;
 //  le vecchie righe 'sposta-*' non contano)
-const BOOKED = "(SELECT COALESCE(SUM(uova),0) FROM orders WHERE COALESCE(stato,'ok') = 'ok' AND COALESCE(eliminato,'') = '')";
+// uova disponibili = caricate − CONSEGNATE (le prenotazioni non ancora consegnate non le toccano)
+const BOOKED = "(SELECT COALESCE(SUM(p.uova),0) FROM payments p JOIN orders o ON o.id = p.order_id WHERE COALESCE(o.eliminato,'') = '')";
 const TRASH_DAYS = 30;   // dopo quanti giorni il cestino si svuota da solo
 const LOADED = "(SELECT COALESCE(SUM(CASE WHEN COALESCE(dest,'') LIKE 'sposta%' THEN 0 ELSE uova END),0) FROM loads)";
 const AV_R = `(${LOADED} - ${BOOKED})`;
@@ -498,7 +499,7 @@ async function order_(db, env, ctx, d) {
     const l2 = await available_(db);
     return json({ ok: false, error: l2 > 0 ? 'Sono rimaste solo ' + l2 + ' uova disponibili.' : (s.msg || DEFAULT_MSG), closed: l2 <= 0 });
   }
-  const res = { ok: true, uova, euro, left: left - uova, satispay: SATISPAY_PHONE, paypal: paypalLink(euro), perIl };
+  const res = { ok: true, uova, euro, left, satispay: SATISPAY_PHONE, paypal: paypalLink(euro), perIl };
   if (rid) await db.prepare('INSERT OR REPLACE INTO idem (rid, res, ts) VALUES (?, ?, ?)').bind(rid, JSON.stringify(res), Date.now()).run();
 
   await telegram(env, db, '🥚 OviAmo – nuova prenotazione\n' + nome + ' ' + cognome + ': ' + (uova === 1 ? '1 uovo' : uova + ' uova') + '\n' +
@@ -507,7 +508,7 @@ async function order_(db, env, ctx, d) {
     (perIl ? '\nPer il: ' + perIl.split('-').reverse().join('/') : '') +
     (telefono ? '\nTel: ' + telefono : '') +
     (note ? '\nNote: ' + note : '') +
-    '\nUova ancora disponibili: ' + (left - uova),
+    '\nUova disponibili (non ancora consegnate): ' + left,
     [[{ text: '📋 Apri il report', url: SITE + '/report.html' }]]);
   return json(res);
 }
