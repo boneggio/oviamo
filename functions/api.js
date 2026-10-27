@@ -470,7 +470,7 @@ async function order_(db, env, ctx, d) {
     if (prev) return json(JSON.parse(prev.res));
   }
   const s = await settings_(db), left = await available_(db);
-  if (d.tipo === 'data') return await request_(db, env, d, rid);
+  // (dal 27/10/26 niente più richieste da confermare: anche "per una data" è una prenotazione valida subito)
   if (!s.open || left <= 0) return json({ ok: false, closed: true, error: s.msg || DEFAULT_MSG });
 
   const nome = clean(d.nome, 60), cognome = clean(d.cognome, 60);
@@ -481,7 +481,12 @@ async function order_(db, env, ctx, d) {
   if (!uova) return json({ ok: false, error: 'Scegli almeno un uovo' });
   if (uova > left) return json({ ok: false, error: 'Sono rimaste solo ' + left + ' uova disponibili.' });
   const euro = Math.round((q1 * PRICE_1 + q6 * PRICE_6) * 100) / 100;
-  const perIl = '';   // le prenotazioni "subito" non hanno data: per una data si usa la richiesta
+  let perIl = '';
+  if (d.tipo === 'data') {   // prenotazione per un giorno scelto (da domani a 3 mesi)
+    if (!isDate(d.perIl) || d.perIl < addDays(today_(), 1)) return json({ ok: false, error: 'Scegli una data da domani in poi.' });
+    if (d.perIl > addDays(today_(), 90)) return json({ ok: false, error: 'Puoi prenotare al massimo per i prossimi 3 mesi.' });
+    perIl = d.perIl;
+  }
   const telefono = clean(d.telefono, 30), note = clean(d.note, 500);
 
   // inserisce solo se le uova bastano ancora (evita di prenotare due volte le stesse)
@@ -503,8 +508,7 @@ async function order_(db, env, ctx, d) {
     (telefono ? '\nTel: ' + telefono : '') +
     (note ? '\nNote: ' + note : '') +
     '\nUova ancora disponibili: ' + (left - uova),
-    [...(waNum(telefono) ? [[{ text: '💬 Conferma su WhatsApp', url: 'https://wa.me/' + waNum(telefono) + '?text=' + encodeURIComponent(await waFill(db, perIl ? 'conferma' : 'normale', nome, uova, euro, perIl)) }]] : []),
-     [{ text: '📋 Apri il report', url: SITE + '/report.html' }]]);
+    [[{ text: '📋 Apri il report', url: SITE + '/report.html' }]]);
   return json(res);
 }
 
