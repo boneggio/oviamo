@@ -22,6 +22,7 @@
 .om-h{display:grid;grid-template-columns:1fr auto auto auto 14px;gap:10px;align-items:center;width:100%;padding:10px 12px;border:0;background:none;color:var(--ink);font:500 .9rem Inter,sans-serif;text-align:left;cursor:pointer}
 .om-h b{font-weight:700}.om-h .om-d{color:var(--muted);font-size:.82rem;white-space:nowrap}.om-h .om-u{white-space:nowrap}.om-h .om-e{font-weight:700;white-space:nowrap}
 .om-h .om-c{color:var(--muted);transition:transform .2s}.om.op .om-h .om-c{transform:rotate(90deg)}
+.om-h .om-r{grid-column:1/-2;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.82rem;font-weight:500}.om-r .r{color:#b45309}.om-r .r b{font-weight:800}.om-r .ok,.om-r.ok{color:#15803d}
 .om.op .om-h{border-bottom:1px solid var(--line);background:var(--bg)}
 .om>.oo{border:0;border-radius:0}
 .om>.oo>.oo-h b.nm,.om>.oo>.oo-h .oo-e{display:none}
@@ -213,12 +214,19 @@
 
   /** Riga compatta: nome, data, uova, valore; toccandola si apre la scheda completa */
   const miniOpen = new Set();
+  /** Cosa manca: uova ancora da dare e soldi ancora da avere */
+  const remTxt = o => {
+    if (o.stato === 'rifiutata') return '';
+    const L = left(o), R = rest(o);
+    if (!L && R <= 0.005) return '<span class="om-r ok">✓ Consegnate e pagate</span>';
+    return `<span class="om-r">${L ? `<span class="r">🥚 Da dare <b>${uTxt(L)}</b></span>` : '<span class="ok">🥚 Consegnate ✓</span>'}${R > 0.005 ? `<span class="r">💶 Da avere <b>${eur(R)}</b></span>` : '<span class="ok">💶 Pagate ✓</span>'}</span>`;
+  };
   const mini = (o, opt) => {
     const op = miniOpen.has(o.id) || forms.has(o.id);
     const d = o.perIl ? 'per ' + new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' }) : dIt(o.data);
     return `<div class="om${op ? ' op' : ''}" data-mid="${esc(o.id)}"><button type="button" class="om-h" data-tg="${esc(o.id)}" aria-expanded="${op}">
       <span class="om-n"><b>${esc(o.nome)} ${esc(o.cognome || '')}</b>${o.mano ? ' <span class="oo-badge mn">🤝</span>' : ''}</span>
-      <span class="om-d">${d}</span><span class="om-u">${uTxt(o.uova)}</span><span class="om-e">${eur(o.euro)}</span><span class="om-c">▸</span></button>${op ? row(o, opt) : ''}</div>`;
+      <span class="om-d">${d}</span><span class="om-u">${uTxt(o.uova)}</span><span class="om-e">${eur(o.euro)}</span><span class="om-c">▸</span>${remTxt(o)}</button>${op ? row(o, opt) : ''}</div>`;
   };
   /** Un ordine "subito" si può rifiutare finché non è iniziata consegna o pagamento */
   const canRej = o => (o.stato || 'ok') === 'ok' && !o.perIl && !cons(o) && paid(o) <= 0.005;
