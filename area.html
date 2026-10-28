@@ -318,13 +318,13 @@ function renderOrders(){
   const O = (D.orders || []).filter(o=>o.stato!=='rifiutata'), sum=(l,f)=>l.reduce((t,x)=>t+(+x[f]||0),0);
   const OK = O.filter(o=>(o.stato||'ok')==='ok'), done = OviOrd.done;
   const att = O.filter(o=>o.stato==='attesa' && !done(o)).length, dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0), aperte = O.filter(o=>!done(o)).length;
-  $('obadge').innerHTML = [aperte ? `<span data-go="">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join('');
+  $('obadge').innerHTML = [aperte ? `<span data-go="">${aperte} ${aperte === 1 ? 'aperto' : 'aperti'}</span>` : '<span>Tutto in ordine ✓</span>', dc ? `<span data-go="nc">🥚 ${dc} da dare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da avere</span>` : ''].join('');
   $('ordList').hidden = of === null; $('odoneBox').hidden = false;
   document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', x.dataset.go === of));
-  $('olTitle').textContent = ({'':'Da sistemare', att:'Da confermare', nc:'Da consegnare', np:'Da incassare'})[of] || 'Prenotazioni';
+  $('olTitle').textContent = ({'':'Ordini aperti', att:'Da confermare', nc:'Uova da dare', np:'Soldi da avere'})[of] || 'Prenotazioni';
   const V = of === null ? [] : O.filter(o => !done(o) && (of==='np' ? OviOrd.rest(o) > 0.005 && o.stato!=='attesa' : of==='nc' ? OviOrd.cons(o) < o.uova && o.stato!=='attesa' : of==='att' ? o.stato==='attesa' : true)).sort((a,b)=>b.data.localeCompare(a.data));
   const vis = allO ? V : V.slice(0,15);
-  $('ords').innerHTML = vis.map(o => OviOrd.mini(o, { del: true })).join('') || `<p class="empty">${O.length ? 'Nessuna prenotazione da sistemare in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
+  $('ords').innerHTML = vis.map(o => OviOrd.mini(o, { del: true })).join('') || `<p class="empty">${O.length ? 'Nessun ordine aperto in questo elenco.' : 'Ancora nessuna prenotazione.'}</p>`;
   const F = O.filter(done).sort((a,b)=>b.data.localeCompare(a.data));
   $('odone').innerHTML = (allOD ? F : F.slice(0,15)).map(o => OviOrd.mini(o, { del: true })).join('') || '<p class="empty">Ancora nessuna prenotazione completata.</p>';
   $('odmore').hidden = allOD || F.length <= 15;
