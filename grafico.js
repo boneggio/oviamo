@@ -19,7 +19,7 @@ const CSS = `
 .oc-k div{background:var(--bg);border-radius:12px;padding:8px 10px}
 .oc-k small{display:block;color:var(--muted);font-size:.75rem}
 .oc-k b{font-family:Fraunces,Georgia,serif;font-size:1.25rem;font-variant-numeric:tabular-nums}
-.oc-h small i{font-style:normal;opacity:.75}
+.oc-h small i{font-style:normal}
 .oc-k .pos{color:var(--brand)}.oc-k .neg{color:var(--err)}
 .oc-svg{width:100%;height:auto;display:block}
 .oc-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin-top:6px}
