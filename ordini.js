@@ -36,7 +36,7 @@
 .oo-bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden}
 .oo-bar i{display:block;height:100%;background:var(--brand-2)}
 .oo-a{display:flex;flex-wrap:wrap;gap:6px}
-.oo button.ob{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
+.oo button.ob{display:inline-flex;align-items:center;gap:5px;min-height:40px;padding:7px 14px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
 .oo button.ob:hover{border-color:var(--brand-2)}
 .oo a.ob{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:99px;font:700 .82rem Inter,sans-serif;text-decoration:none}
 .oo a.ob.wa{background:#25d366;color:#0b2e17;border:1px solid #25d366}
@@ -54,7 +54,7 @@
 .oo-q.shake{animation:ooShake .4s;outline:2px solid var(--err)}
 @keyframes ooShake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .oo-m{display:flex;gap:6px;flex-wrap:wrap}
-.oo-m button{padding:7px 11px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
+.oo-m button{min-height:40px;padding:7px 12px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:600 .82rem Inter,sans-serif;cursor:pointer}
 .oo-m button.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 16%,var(--card));color:var(--brand)}
 .oo-dec{display:grid;gap:6px;padding:9px 10px;border-radius:12px;background:color-mix(in srgb,var(--yolk) 22%,var(--card));font-size:.86rem;font-weight:600}
 .oo-dec.rej{background:var(--bg);color:var(--muted)}
@@ -65,16 +65,16 @@
 .oo-wapb .oo-lk{justify-self:center;border:0;background:none;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit}
 .oo-sum{font-size:.86rem;padding:8px 10px;border-radius:10px;background:var(--card);border:1px dashed var(--line)}
 .oo-del{color:var(--err)!important;font-size:.8rem!important}
-.oo-lk{border:0;background:none;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.84rem}
+.oo-lk{border:0;background:none;padding:10px 4px;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:.84rem}
 .oo .pp{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:#1f4fa0;color:#fff;font:800 italic .62rem Inter,sans-serif}
 .oo-k{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
-.oo-kd{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:600 .88rem Inter,sans-serif;cursor:pointer}
+.oo-kd{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:600 .88rem Inter,sans-serif;cursor:pointer}
 .oo-kd .ck{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;border:2px solid var(--muted);background:var(--card);color:#fff;font-size:.8rem;line-height:1}
 .oo-kd.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
 .oo-kd.on .ck{background:var(--brand);border-color:var(--brand)}
 .oo-kp{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);font:600 .88rem Inter,sans-serif}
 .oo-kp.on{border-color:var(--brand-2);background:color-mix(in srgb,var(--brand-2) 14%,var(--card))}
-.oo-kp button{display:inline-grid;place-items:center;width:38px;height:32px;border:1.5px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;padding:0}
+.oo-kp button{display:inline-grid;place-items:center;width:44px;height:40px;border:1.5px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;padding:0}
 .oo-kp button{position:relative;transition:transform .15s}
 .oo-kp button.on{border:2px solid var(--brand);background:var(--brand);transform:scale(1.1);box-shadow:0 2px 8px color-mix(in srgb,var(--brand) 45%,transparent)}
 .oo-kp button.on::after{content:'✓';position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:#fff;color:var(--brand);border:2px solid var(--brand);font:900 .68rem/14px Inter,sans-serif;text-align:center}
@@ -85,7 +85,7 @@
 .oo-kp svg{width:24px;height:16px}
 .oo-adv{border:1px solid var(--line);border-radius:12px;padding:0 10px}
 .oo-adv[open]{padding-bottom:10px}
-.oo-adv>summary{cursor:pointer;padding:9px 0;font:600 .86rem Inter,sans-serif;color:var(--muted);list-style:none}
+.oo-adv>summary{cursor:pointer;padding:12px 0;min-height:44px;box-sizing:border-box;font:600 .86rem Inter,sans-serif;color:var(--muted);list-style:none}
 .oo-adv>summary::-webkit-details-marker{display:none}
 .oo-adv>div{display:grid;gap:10px}
 .oo-badge.rj{background:var(--bg);color:var(--muted)}
@@ -237,7 +237,7 @@
     const per = o.perIl ? `<b style="color:var(--brand)">per ${new Date(o.perIl + 'T12:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'numeric' })}</b> · ` : '';
     const mv = o.payments || [];
     return `<div class="oo ${done(o) ? 'done' : ''}" data-oid="${esc(o.id)}"${opt.del ? ' data-del="1"' : ''}>
-  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'attesa' ? ' <span class="oo-badge">Da confermare</span>' : o.stato === 'rifiutata' ? ' <span class="oo-badge rj">Rifiutata</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}${o.mano ? ' <span class="oo-badge mn">🤝 A mano</span>' : ''}
+  <div class="oo-h"><div><b class="nm">${esc(o.nome)} ${esc(o.cognome)}</b>${o.stato === 'rifiutata' ? ' <span class="oo-badge rj">Rifiutata</span>' : ''}${o.contatto ? ' <span class="oo-badge rb">Rubrica</span>' : ''}${o.mano ? ' <span class="oo-badge mn">🤝 A mano</span>' : ''}
     <div class="oo-w">${per}${dIt(o.data)}${qty ? ` · ${qty}` : ''}${o.telefono ? ` · <a href="tel:${esc(o.telefono)}">${esc(o.telefono)}</a>` : ''}</div></div>
     <div class="oo-e"><b>${eur(o.euro)}</b><small>${uTxt(o.uova)}</small></div></div>
   ${o.note ? `<div class="oo-nt">“${esc(o.note)}”</div>` : ''}
