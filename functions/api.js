@@ -694,8 +694,8 @@ async function move_(db, d, u) {
   const n = Math.max(0, parseInt(d.uova, 10) || 0);
   const e = Math.round((parseFloat(String(d.euro == null ? '' : d.euro).replace(',', '.')) || 0) * 100) / 100;
   if (!n && !(e > 0)) return json({ ok: false, error: 'Scrivi le uova consegnate o l\'importo pagato' });
-  if (n > rest.u) return json({ ok: false, error: rest.u ? 'Restano da consegnare solo ' + rest.u + ' uova' : 'Le uova sono già tutte consegnate' });
-  if (e < 0 || e > rest.e + 0.005) return json({ ok: false, error: rest.e > 0 ? 'Restano da pagare solo ' + rest.e.toFixed(2).replace('.', ',') + ' €' : 'È già tutto pagato' });
+  if (n > rest.u) return json({ ok: false, error: rest.u ? 'Restano da dare solo ' + rest.u + ' uova' : 'Le uova sono già tutte consegnate' });
+  if (e < 0 || e > rest.e + 0.005) return json({ ok: false, error: rest.e > 0 ? 'Restano da avere solo ' + rest.e.toFixed(2).replace('.', ',') + ' €' : 'È già tutto pagato' });
   if (e > 0 && !['contanti', 'satispay', 'paypal'].includes(d.metodo)) return json({ ok: false, error: 'Scegli Contanti, Satispay o PayPal' });
   await addMove_(db, id, isDate(d.data) ? d.data : today_(), n, e, d.metodo, u);
   await sync_(db, id);
