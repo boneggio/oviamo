@@ -181,8 +181,8 @@
     if (e > 0) parts.push(`incassi <b>${eur(e)}</b>${f.m ? (' ' + (MNAME[f.m] || 'in contanti')) : ''}`);
     if (!parts.length) return 'Scrivi le uova consegnate adesso o i soldi ricevuti adesso.';
     let after = [];
-    after.push(dl > 0 ? `restano <b>${uTxt(dl)}</b> da consegnare` : 'uova tutte consegnate');
-    after.push(dr > 0.005 ? `restano <b>${eur(dr)}</b> da pagare` : 'tutto pagato');
+    after.push(dl > 0 ? `restano <b>${uTxt(dl)}</b> da dare` : 'uova tutte consegnate');
+    after.push(dr > 0.005 ? `restano <b>${eur(dr)}</b> da avere` : 'tutto pagato');
     let warn = '';
     if (n && !(e > 0)) warn = ' <br>⚠️ Le uova consegnate adesso non risultano pagate.';
     else if (!n && e > 0 && left(o)) warn = ' <br>💡 Pagamento in anticipo.';
@@ -199,14 +199,14 @@
         <button type="button" class="st" data-oa="fn" data-d="-1" aria-label="Meno">−</button>
         <input name="n" type="number" inputmode="numeric" min="0" max="${L}" value="${f.n}" aria-label="Uova consegnate ora">
         <button type="button" class="st" data-oa="fn" data-d="1" aria-label="Più">+</button>
-        <small style="color:var(--muted)">su ${uTxt(L)} da consegnare</small></div>
+        <small style="color:var(--muted)">su ${uTxt(L)} da dare</small></div>
       ${f.mode === 'pay' && L ? `<div><button type="button" class="oo-lk" data-oa="fneq" ${eqN && f.n !== eqN ? '' : 'hidden'}>${eqTxt(eqN)}</button></div>` : ''}
       <div class="oo-q${f.mode === 'dlv' && !f.answered ? ' ask' : ''}"><span class="lb">${f.mode === 'dlv' ? 'Sono pagate? <small>(scegli una risposta)</small>' : 'Pagato ora €'}</span>
         <div class="oo-m">${f.mode === 'dlv' ? `<button type="button" data-oa="fm" data-m="" class="${f.m === '' && f.answered ? 'on' : ''}">Non pagate</button>` : ''}
           <button type="button" data-oa="fm" data-m="contanti" class="${f.m === 'contanti' ? 'on' : ''}">${MET.contanti}</button>
           <button type="button" data-oa="fm" data-m="satispay" class="${f.m === 'satispay' ? 'on' : ''}">${MET.satispay}</button>
           <button type="button" data-oa="fm" data-m="paypal" class="${f.m === 'paypal' ? 'on' : ''}">${MET.paypal}</button></div></div>
-      ${f.m ? `<div class="oo-q"><span class="lb">Importo €</span><input name="e" inputmode="decimal" value="${String(r2(f.e)).replace('.', ',')}" aria-label="Importo pagato ora"><small style="color:var(--muted)">su ${eur(R)} da pagare</small></div>` : ''}
+      ${f.m ? `<div class="oo-q"><span class="lb">Importo €</span><input name="e" inputmode="decimal" value="${String(r2(f.e)).replace('.', ',')}" aria-label="Importo pagato ora"><small style="color:var(--muted)">su ${eur(R)} da avere</small></div>` : ''}
       <div class="oo-sum">${sumTxt(o, f)}</div>
       <div class="oo-a"><button class="ob pr">Registra</button><button type="button" class="ob" data-oa="fx">Annulla</button></div>
     </form>`;
@@ -378,9 +378,9 @@
       hb.hidden = !D.orders;
       const inc = M.reduce((t, o) => t + paid(o), 0), dap = M.reduce((t, o) => t + rest(o), 0);
       hb.querySelector('[data-mh-n]').textContent = M.length ? `(${M.length})` : '';
-      hb.querySelector('[data-mh-s]').innerHTML = M.length ? `<span>🥚 <b>${M.reduce((t, o) => t + o.uova, 0)}</b> uova</span><span>💶 incassati <b>${eur(inc)}</b></span>${dap > 0.005 ? `<span class="r">da incassare <b>${eur(dap)}</b></span>` : ''}` : '';
+      hb.querySelector('[data-mh-s]').innerHTML = M.length ? `<span>🥚 <b>${M.reduce((t, o) => t + o.uova, 0)}</b> uova</span><span>💶 incassati <b>${eur(inc)}</b></span>${dap > 0.005 ? `<span class="r">da avere <b>${eur(dap)}</b></span>` : ''}` : '';
       hb.querySelector('[data-mh]').innerHTML = M.map(o => `<div class="mh-r"><span class="d">${dIt(o.data)}</span><b>${esc(o.nome)} ${esc(o.cognome || '')}</b><span>${uTxt(o.uova)}</span><span>${eur(o.euro)}</span>${rest(o) > 0.005
-        ? `<span class="r">da pagare ${eur(rest(o))}</span>` : `<span class="ok">✓ ${usedM(o).map(m => ({ contanti: 'contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ') || 'pagato'}</span>`}</div>`).join('') || '<p class="hint">Ancora nessuna consegna a mano.</p>';
+        ? `<span class="r">da avere ${eur(rest(o))}</span>` : `<span class="ok">✓ ${usedM(o).map(m => ({ contanti: 'contanti', satispay: 'Satispay', paypal: 'PayPal' })[m] || '').join(' + ') || 'pagato'}</span>`}</div>`).join('') || '<p class="hint">Ancora nessuna consegna a mano.</p>';
     };
     const price = n => r2(Math.floor(n / 6) * 3 + (n % 6) * 0.5);
     [...new Set([el, elM])].forEach(c => {
