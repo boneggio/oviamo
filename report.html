@@ -258,7 +258,7 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <div class="plist" id="prenList" hidden>
         <div class="olh"><h2 id="plTitle">Prenotazioni</h2><button type="button" class="olx" id="plClose" aria-label="Chiudi l'elenco">✕</button></div>
         <div class="bar">
-          <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da pagare</button><button data-f="nc">Da consegnare</button></div>
+          <div class="seg" id="pf"><button data-f="" class="on">Tutte</button><button data-f="np">Da avere</button><button data-f="nc">Da dare</button></div>
           <select id="py" aria-label="Anno"></select>
           <input id="ps" type="search" placeholder="Cerca nome…" style="max-width:180px">
           <span class="sp"></span>
@@ -461,8 +461,8 @@ function render(){
   const costi = sum(D.costs,'euro'), inc = sum(P,'euro');
   $('kpis').innerHTML = [
     ['Uova disponibili', D.available, 'hl', '<span class="sub">si prenotano sul sito</span>'],
-    ['Uova da consegnare', O.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)],
-    ['Da incassare', eur(sum(O,'euro')-inc)],
+    ['Uova da dare', O.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0)],
+    ['Soldi da avere', eur(sum(O,'euro')-inc)],
     ['Incassato', eur(inc), '', `<span class="sub">${CASH} ${eur(sum(P.filter(p=>p.metodo!=='satispay'&&p.metodo!=='paypal'),'euro'))} · ${SP} ${eur(sum(P.filter(p=>p.metodo==='satispay'),'euro'))}${P.some(p=>p.metodo==='paypal')?` · ${PP} ${eur(sum(P.filter(p=>p.metodo==='paypal'),'euro'))}`:''}</span>`],
     ['Costi', eur(costi)],
     ['Margine', `<span class="${inc-costi<0?'neg':''}">${eur(inc-costi)}</span>`]
@@ -504,7 +504,7 @@ function renderOrders(){
   const na = D.orders.filter(o=>o.stato==='attesa' && !OviOrd.done(o)).length; 
   { const OK = D.orders.filter(o=>o.stato==='ok'), aperte = D.orders.filter(o=>o.stato!=='rifiutata' && !OviOrd.done(o)).length,
       dc = OK.reduce((t,o)=>t+o.uova-OviOrd.cons(o),0), di = OK.reduce((t,o)=>t+OviOrd.rest(o),0);
-    $('obadge').innerHTML = [`<span data-go="">📋 Tutte</span>`, aperte ? `<span data-go="ap">${aperte} da sistemare</span>` : '<span>Tutto in ordine ✓</span>', dc ? `<span data-go="nc">🥚 ${dc} da consegnare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da incassare</span>` : ''].join(''); }
+    $('obadge').innerHTML = [`<span data-go="">📋 Tutte</span>`, aperte ? `<span data-go="ap">${aperte} ${aperte===1?'aperto':'aperti'}</span>` : '<span>Tutto in ordine ✓</span>', dc ? `<span data-go="nc">🥚 ${dc} da dare</span>` : '', di > 0.005 ? `<span data-go="np">💶 ${eur(di)} da avere</span>` : ''].join(''); }
   document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', !$('prenList').hidden && x.dataset.go === pf)); $('plTitle').textContent = PTIT[pf] || 'Prenotazioni';
   $('ptb').innerHTML = V.map(o=>`<tr class="${o.stato==='rifiutata'?'rej':OviOrd.done(o)?'done':''}">
     <td class="c"><input type="checkbox" data-sel="${esc(o.id)}" ${sel.has(o.id)?'checked':''} aria-label="Seleziona"></td>
@@ -513,7 +513,7 @@ function renderOrders(){
     <td>${o.telefono?`<a href="tel:${esc(o.telefono)}" style="color:inherit">${esc(o.telefono)}</a>`:''}</td>
     <td class="n"><b>${o.uova}</b><div class="d" style="font-size:.78rem">${uovaTxt(o)}</div></td>
     <td class="n">${eur(o.euro)}</td>
-    <td class="c"><span class="pay2 ${o.pagato&&!o.metodo?'old':''}" title="${o.pagato?(o.metodo==='satispay'?'Pagato con Satispay':o.metodo==='paypal'?'Pagato con PayPal':o.metodo==='contanti'?'Pagato in contanti':'Pagato'):'Da pagare'}">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button><button data-pay="paypal" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='paypal'?'on':''}" aria-label="Pagato con PayPal">${PP}</button></span>${partPay(o)}</td>
+    <td class="c"><span class="pay2 ${o.pagato&&!o.metodo?'old':''}" title="${o.pagato?(o.metodo==='satispay'?'Pagato con Satispay':o.metodo==='paypal'?'Pagato con PayPal':o.metodo==='contanti'?'Pagato in contanti':'Pagato'):'Da avere'}">${o.pagato&&!o.metodo?'<b class="okm">✓</b>':''}<button data-pay="contanti" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='contanti'?'on':''}" aria-label="Pagato in contanti">${CASH}</button><button data-pay="satispay" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='satispay'?'on':''}" aria-label="Pagato con Satispay">${SP}</button><button data-pay="paypal" data-id="${esc(o.id)}" class="${o.pagato&&o.metodo==='paypal'?'on':''}" aria-label="Pagato con PayPal">${PP}</button></span>${partPay(o)}</td>
     <td class="c"><input type="checkbox" data-flag="consegnato" data-id="${esc(o.id)}" ${o.consegnato?'checked':''} aria-label="Consegnato">${partDlv(o)}</td>
   </tr>${openDet.has(o.id)?`<tr class="detr"><td colspan="8">${OviOrd.row(o, { del: true })}</td></tr>`:''}`).join('') || `<tr><td colspan="8" class="empty">Nessuna prenotazione.</td></tr>`;
   const s = (f)=>V.filter(o=>o.stato!=='rifiutata').reduce((t,o)=>t+(+o[f]||0),0);
@@ -529,7 +529,7 @@ function renderCal(){
   $('cCal').textContent = up.length + att.length;
   const in7 = (()=>{ const d=new Date(td+'T12:00'); d.setDate(d.getDate()+6); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); })();
   const noDate = D.orders.filter(o => !o.perIl && !o.consegnato && o.stato==='ok');
-  $('calSum').innerHTML = `<span>Oggi: <b>${(byDay[td]||[]).filter(o=>!o.consegnato).reduce((t,o)=>t+o.uova,0)}</b> uova</span><span>Prossimi 7 giorni: <b>${up.filter(o=>o.perIl<=in7).reduce((t,o)=>t+o.uova,0)}</b> uova</span><span>Senza data, da consegnare: <b>${noDate.reduce((t,o)=>t+o.uova,0)}</b> uova</span>${att.length?`<span style="background:color-mix(in srgb,var(--yolk) 35%,var(--bg))">Da confermare: <b>${att.length}</b> richieste (${att.reduce((t,o)=>t+o.uova,0)} uova)</span>`:''}`;
+  $('calSum').innerHTML = `<span>Oggi: <b>${(byDay[td]||[]).filter(o=>!o.consegnato).reduce((t,o)=>t+o.uova,0)}</b> uova</span><span>Prossimi 7 giorni: <b>${up.filter(o=>o.perIl<=in7).reduce((t,o)=>t+o.uova,0)}</b> uova</span><span>Senza data, da dare: <b>${noDate.reduce((t,o)=>t+o.uova,0)}</b> uova</span>${att.length?`<span style="background:color-mix(in srgb,var(--yolk) 35%,var(--bg))">Da confermare: <b>${att.length}</b> richieste (${att.reduce((t,o)=>t+o.uova,0)} uova)</span>`:''}`;
   const [y,m] = calM.split('-').map(Number), first = new Date(y, m-1, 1);
   $('calT').textContent = first.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
   const start = new Date(first); start.setDate(1 - ((first.getDay()+6)%7));
@@ -582,7 +582,7 @@ $('tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; ta
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('[data-p]').forEach(p=>p.hidden = p.dataset.p!==tab); if(tab==='gra'&&chart) chart.update({}); if(tab==='sic') secLoad(); if(tab==='msg') tplRender(); };
 // clic sui riepiloghi della tendina: apre e mostra l'elenco giusto
-const PTIT = {'':'Tutte le prenotazioni', ap:'Da sistemare', att:'Da confermare', nc:'Da consegnare', np:'Da incassare'};
+const PTIT = {'':'Tutte le prenotazioni', ap:'Ordini aperti', att:'Da confermare', nc:'Uova da dare', np:'Soldi da avere'};
 const showList = go => { const L = $('prenList'); if (go === null) { L.hidden = true; } else { L.hidden = false; pf = go;
     document.querySelectorAll('#pf button').forEach(x=>x.classList.toggle('on',x.dataset.f===pf)); renderOrders(); }
   document.querySelectorAll('#obadge [data-go]').forEach(x => x.classList.toggle('on', !L.hidden && x.dataset.go === pf)); $('plTitle').textContent = PTIT[pf] || 'Prenotazioni'; };
