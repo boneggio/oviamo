@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f3f7ec;--card:#fffff9;--ink:#1f2a17;--muted:#61705a;--line:#dbe5cf;--brand:#3f6b2a;--brand-2:#5a8f3a;--yolk:#e8b23a;--err:#a8322a}
+:root{--bg:#f3f7ec;--card:#fffff9;--ink:#1f2a17;--muted:#55644e;--line:#dbe5cf;--brand:#3f6b2a;--brand-2:#5a8f3a;--yolk:#e8b23a;--err:#a8322a}
 @media (prefers-color-scheme:dark){:root{--bg:#121a0f;--card:#1a2416;--ink:#eaf2e2;--muted:#a7b79d;--line:#2c3a25;--brand:#8cc46a;--brand-2:#a6d686;--yolk:#f0c55a;--err:#f08a80}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -20,7 +20,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-u
 .top img{width:56px;filter:drop-shadow(0 4px 8px rgba(30,50,10,.3))}
 h1{font-family:Fraunces,Georgia,serif;font-weight:800;color:#fff;margin:0;font-size:1.6rem;line-height:1.1;text-shadow:0 2px 10px rgba(30,60,10,.55);flex:1}
 .top .act{display:flex;gap:6px}
-.top .act button{border:0;background:rgba(255,255,255,.9);color:#3f6b2a;border-radius:99px;padding:6px 12px;font:600 .82rem Inter,sans-serif;cursor:pointer}
+.top .act button{border:0;background:rgba(255,255,255,.9);color:#3f6b2a;border-radius:99px;padding:10px 14px;font:600 .82rem Inter,sans-serif;cursor:pointer}
 .wrap{max-width:1000px;margin:-18px auto 0;padding:0 16px 48px;display:grid;gap:14px}
 .wrap>*,#app>*{min-width:0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 12px 34px -26px rgba(30,60,10,.5)}
@@ -67,7 +67,7 @@ details.pren{border:2px solid var(--brand-2);border-radius:16px;overflow:hidden}
 .pbox .pb span.on{outline:3px solid var(--brand);outline-offset:1px}
 .plist{border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
 .olh{display:flex;align-items:center;gap:10px;margin-bottom:10px}.olh h2{margin:0;flex:1;font-size:1.15rem}
-.olx{border:1px solid var(--line);background:var(--bg);border-radius:50%;width:34px;height:34px;cursor:pointer;color:var(--muted)}
+.olx{border:1px solid var(--line);background:var(--bg);border-radius:50%;width:44px;height:44px;cursor:pointer;color:var(--muted)}
 details.pren>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 48px 14px 18px;position:relative;background:color-mix(in srgb,var(--yolk) 28%,var(--card))}
 details.pren>summary::-webkit-details-marker{display:none}
 details.pren>summary h2{margin:0;font-size:1.25rem}
@@ -112,7 +112,7 @@ th,td{padding:8px 8px;border-bottom:1px solid var(--line);text-align:left;vertic
 th{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.c,th.c{text-align:center}
-tr.done td{opacity:.55}
+tr.done td{opacity:.9}
 .det{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
 .det b{text-decoration:underline dotted;text-underline-offset:3px}
 .part{font-size:.72rem;color:var(--err);font-weight:600;white-space:nowrap;margin-top:2px}
@@ -192,8 +192,8 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
 </style>
 </head>
 <body>
-<div class="top"><div class="in"><img src="logo.svg" alt=""><h1>OviAmo · Report</h1>
-  <div class="act" id="act" hidden><button id="refresh">Aggiorna</button><button id="logout">Esci</button></div></div></div>
+<header class="top"><div class="in"><img src="logo.svg" alt=""><h1>OviAmo · Report</h1>
+  <div class="act" id="act" hidden><button id="refresh">Aggiorna</button><button id="logout">Esci</button></div></div></header>
 
 <main class="wrap">
   <section class="card login" id="login">
@@ -406,7 +406,7 @@ const post = body => fetch(SCRIPT_URL,{method:'POST',headers:hdr(),body:JSON.str
 const STOCK = OviOrd.stock($('stockBox'), post, () => load(), { mano: $('manoBox') });
 const dShort = s => new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'numeric'});
 let calM = null, calSel = '';
-const stBadge = o => o.stato==='attesa' ? '<span class="stb att">Da confermare</span>' : o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
+const stBadge = o => o.stato==='rifiutata' ? '<span class="stb rej">Rifiutata</span>' : '';
 const decBtns = o => ''; const decBtnsOld = o => o.stato==='attesa' ? `<div class="dec"><button class="yes" data-decide="ok" data-id="${esc(o.id)}">✓ Conferma</button><button class="no" data-decide="rifiutata" data-id="${esc(o.id)}">✕ Rifiuta</button></div>`
   : o.stato==='rifiutata' ? (o.perIl ? `<div class="dec"><button data-decide="attesa" data-id="${esc(o.id)}">Rimetti in attesa</button></div>` : `<div class="dec"><button data-decide="ok" data-id="${esc(o.id)}">Annulla il rifiuto</button></div>`) : '';
 const uovaTxt = o => [o.q6?`${o.q6}×6`:'', o.q1?`${o.q1} sing.`:''].filter(Boolean).join(' + ');
