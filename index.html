@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OviAmo – Uova fresche di galline libere</title>
-<meta name="description" content="Prenota le uova fresche delle nostre galline: un uovo 0,50 €, la confezione da 6 a 3 €. Basta nome e cognome.">
+<meta name="description" content="Richiedi le uova fresche delle nostre galline: un uovo 0,50 €, la confezione da 6 a 3 €. Basta nome e cognome.">
 <meta name="theme-color" content="#3f6b2a">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://oviamo.boneggio.it/">
 <meta property="og:title" content="OviAmo – Uova fresche">
-<meta property="og:description" content="Prenota le uova fresche delle nostre galline: basta nome e cognome.">
+<meta property="og:description" content="Richiedi le uova fresche delle nostre galline: basta nome e cognome.">
 <meta property="og:image" content="https://oviamo.boneggio.it/og-image.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
@@ -139,7 +139,7 @@ footer{text-align:center;margin-top:28px}
   <section class="card welcome">
     <h2>🐔 Ciao!</h2>
     <p>Le nostre galline razzolano libere sul prato e ogni giorno ci regalano uova fresche.</p>
-    <p>Se ne vuoi qualcuna, prenotala qui sotto.</p>
+    <p>Se ne vuoi qualcuna, chiedila qui sotto.</p>
     <div class="avail" id="avail" hidden>
       <svg width="26" height="32" aria-hidden="true"><use href="#ovo"/></svg>
       <div><b id="availN">0</b><small>uova disponibili adesso</small></div>
@@ -152,7 +152,7 @@ footer{text-align:center;margin-top:28px}
   </div>
 
   <form class="card" id="f" novalidate>
-    <div class="modes" role="radiogroup" aria-label="Tipo di prenotazione">
+    <div class="modes" role="radiogroup" aria-label="Tipo di richiesta">
       <button type="button" class="mode on" data-mode="subito" role="radio" aria-checked="true"><b>🥚 Subito</b><small id="mSub">tra le uova già pronte</small></button>
       <button type="button" class="mode" data-mode="data" role="radio" aria-checked="false"><b>📅 Per una data</b><small>scegli tu il giorno</small></button>
     </div>
@@ -208,8 +208,8 @@ footer{text-align:center;margin-top:28px}
   <div class="card done" id="done">
     <img class="logo" src="logo.svg" alt="">
     <h2 style="justify-content:center">Grazie <span id="dn"></span>!</h2>
-    <p><span id="dintro">Abbiamo ricevuto la tua prenotazione di </span><b id="dk"></b>,<br>per un totale di <b id="de"></b>.<span id="dpi"></span></p>
-    <button class="link" id="again">Fai un'altra prenotazione</button>
+    <p><span id="dintro">Abbiamo ricevuto la tua richiesta di </span><b id="dk"></b>,<br>per un totale di <b id="de"></b>.<span id="dpi"></span></p>
+    <button class="link" id="again">Invia un'altra richiesta</button>
   </div>
 
   <footer><span class="fname">OviAmo</span><span class="ftag">uova fresche di galline felici</span></footer>
@@ -270,7 +270,7 @@ async function loadInfo(){
         $('f').hidden = true; $('closed').hidden = false; return;
       }
       // uova finite: si può solo prenotare per un giorno
-      $('closedMsg').textContent = 'Al momento le uova sono finite, ma puoi prenotarle per il giorno che ti servono.';
+      $('closedMsg').textContent = 'Al momento le uova sono finite, ma puoi chiederle per il giorno in cui ti servono.';
       $('closed').hidden = false; $('f').hidden = false; setMode('data');
       return;
     }
@@ -303,12 +303,12 @@ $('f').addEventListener('submit', async e => {
     if(!j.ok){ loadInfo(); return err(j.error||'Errore'); }
     $('dn').textContent=nome; $('dk').textContent=j.uova===1?'1 uovo':j.uova+' uova'; $('de').textContent=eur(j.euro);
     const giorno = j.perIl ? new Date(j.perIl+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'}) : '';
-    $('dintro').textContent = j.richiesta ? 'Abbiamo ricevuto la tua richiesta di ' : 'Abbiamo ricevuto la tua prenotazione di ';
+    $('dintro').textContent = j.richiesta ? 'Abbiamo ricevuto la tua richiesta di ' : 'Abbiamo ricevuto la tua richiesta di ';
     $('dpi').innerHTML = j.perIl ? '<br>da ritirare <b>' + giorno + '</b>.' : '';
     $('f').style.display='none'; document.querySelector('.welcome').style.display='none';
     $('done').style.display='block'; window.scrollTo({top:0,behavior:'smooth'});
     if(j.left != null){ AVAIL = j.left; $('availN').textContent = AVAIL; }
-  }catch(x){ err('Non siamo riusciti a inviare la prenotazione. Riprova tra poco. ('+x.message+')'); }
+  }catch(x){ err('Non siamo riusciti a inviare la richiesta. Riprova tra poco. ('+x.message+')'); }
   finally{ btn.disabled=false; btn.textContent = 'Invia la richiesta'; }
 });
 
