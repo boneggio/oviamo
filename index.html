@@ -147,7 +147,7 @@ footer{text-align:center;margin-top:28px}
   </section>
 
   <div class="card closed" id="closed" hidden>
-    <h2 style="justify-content:center">Uova finite</h2>
+    <h2 style="justify-content:center" id="closedT">Uova finite</h2>
     <p id="closedMsg">Al momento le uova sono finite. Appena le galline ne fanno altre vi avviseremo. Grazie!</p>
   </div>
 
@@ -265,7 +265,8 @@ async function loadInfo(){
     sub.disabled = !OPEN; $('mSub').textContent = OPEN ? 'tra le uova già pronte' : 'uova finite per ora';
     if(!OPEN){
       $('avail').hidden = true;
-      if(j.closedByHand){   // chiuso a mano: niente prenotazioni
+      if(j.closedByHand){   // chiuso a mano (o sito riservato senza link): niente prenotazioni
+        $('closedT').textContent = j.riservato ? 'Pagina riservata' : 'Uova finite';
         if(j.msg) $('closedMsg').textContent = j.msg;
         $('f').hidden = true; $('closed').hidden = false; return;
       }
