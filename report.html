@@ -89,6 +89,8 @@ details.pren>.in{padding:14px}
 .set{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}
 @media (max-width:640px){.set{grid-template-columns:1fr}}
 .sw{display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer;user-select:none}
+.riserv{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);display:grid;gap:10px}
+.riserv .rl{display:flex;gap:8px;flex-wrap:wrap}.riserv .rl input{flex:1 1 240px;min-height:44px}.riserv .btn,.riserv .sw{min-height:44px}
 .sw input{position:absolute;opacity:0;width:1px;height:1px}
 .sw i{width:46px;height:26px;border-radius:99px;background:var(--line);position:relative;transition:background .2s;flex:none}
 .sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
@@ -230,6 +232,15 @@ tr.rej td{opacity:.5}tr.rej b{text-decoration:line-through}
         <button class="btn" id="saveSet">Salva</button>
       </div>
       <p class="hint" id="setHint"></p>
+      <div class="riserv">
+        <label class="sw"><input type="checkbox" id="ris"><i></i><span id="risL">Sito aperto a tutti</span></label>
+        <div class="rl" id="risBox" hidden>
+          <input id="risLink" readonly aria-label="Link da mandare">
+          <button class="btn" id="risCopy" type="button">📋 Copia link</button>
+          <button class="btn ghost" id="risNew" type="button">🔄 Cambia link</button>
+        </div>
+        <p class="hint" id="risHint"></p>
+      </div>
       <div class="set" style="margin-top:12px">
         <span>🔔 <b>Avvisi Telegram</b></span>
         <button class="btn ghost" id="tgLink">Collega l'ultima chat</button>
@@ -473,6 +484,7 @@ function render(){
   $('setHint').textContent = !D.settings.open ? 'La pagina mostra il messaggio di chiusura.'
     : D.available > 0 ? `La pagina accetta prenotazioni fino a ${D.available} uova; poi si chiude da sola.`
     : 'Uova finite: la pagina mostra il messaggio finché qualcuno non carica altre uova.';
+  risDraw();
 
   $('cPren').textContent = O.length; $('cCar').textContent = D.loads.length; $('cCos').textContent = D.costs.length; $('cUte').textContent = D.users.length;
   renderHens();
@@ -598,6 +610,33 @@ $('saveSet').onclick = async () => {
     D.settings = j.settings; render(); toast('Salvato'); }catch(x){ toast(x.message||'Errore'); }
 };
 $('open').onchange = () => $('saveSet').click();
+/* ---------- sito riservato (solo con il link) ---------- */
+function risDraw(){
+  const s = D.settings, on = !!s.riservato;
+  $('ris').checked = on;
+  $('risL').textContent = on ? '🔒 Sito riservato: si apre solo con il link' : 'Sito aperto a tutti';
+  $('risBox').hidden = !on;
+  $('risLink').value = on && s.invito ? 'https://oviamo.boneggio.it/?c=' + s.invito : '';
+  $('risHint').textContent = on ? 'Manda questo link a chi vuoi: chi lo apre una volta resta dentro. Se cambi link, quello vecchio smette di funzionare per tutti.'
+    : "Chiunque conosca l'indirizzo può aprire il sito. Accendi l'interruttore per farlo aprire solo a chi ha il tuo link.";
+}
+$('ris').onchange = async () => {
+  const want = $('ris').checked;
+  try{ const j = await post({action:'settings', riservato: want}); if(!j.ok) throw new Error(j.error);
+    D.settings = j.settings; render(); toast(want ? 'Sito riservato ✓ Ora manda il link' : 'Sito aperto a tutti'); }
+  catch(x){ $('ris').checked = !want; toast(x.message||'Errore'); }
+};
+$('risCopy').onclick = async () => {
+  try{ await navigator.clipboard.writeText($('risLink').value); toast('Link copiato ✓'); }
+  catch(e){ $('risLink').select(); toast('Tieni premuto sul link per copiarlo'); }
+};
+let risArm = 0;
+$('risNew').onclick = async () => {
+  if (Date.now() - risArm > 4000) { risArm = Date.now(); toast('Tocca di nuovo per cambiare link: quello vecchio smetterà di funzionare'); return; }
+  risArm = 0;
+  try{ const j = await post({action:'settings', nuovoInvito: true}); if(!j.ok) throw new Error(j.error);
+    D.settings = j.settings; render(); toast('Nuovo link pronto ✓'); }catch(x){ toast(x.message||'Errore'); }
+};
 /* ---------- messaggi WhatsApp ---------- */
 const TPL_INFO = [
   ['normale', '🥚 Ordine subito: conferma', 'Appena arriva un ordine di uova disponibili subito.'],
