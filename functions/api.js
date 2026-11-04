@@ -90,8 +90,13 @@ async function riserva_(db) {
 }
 async function settings_(db) {
   const s = {}; (await all(db, 'SELECT k, v FROM settings')).forEach(r => s[r.k] = r.v);
-  return { open: s.open !== '0', msg: s.msg || '' };
+  return { open: s.open !== '0', msg: s.msg || '', riservato: s.riservato === '1', invito: s.invito || '' };
 }
+/** Sito riservato: la pagina pubblica e le prenotazioni funzionano solo con il link (?c=CODICE, poi resta nel cookie ovi_inv) */
+const RIS_MSG = 'Questa pagina è riservata: chiedi il link a chi ti ha parlato delle nostre uova.';
+const cookieOf = (request, k) => { const m = (request.headers.get('Cookie') || '').match(new RegExp('(?:^|;\\s*)' + k + '=([^;]+)')); return m ? decodeURIComponent(m[1]) : ''; };
+const invitoOk = (s, request, d) => !s.riservato || (!!s.invito && [cookieOf(request, 'ovi_inv'), d && d.c].some(c => c && same(String(c), s.invito)));
+const newInvito = () => b32enc(rnd(8)).slice(0, 10).toLowerCase();
 const contacts_ = db => all(db, 'SELECT id, nome, tel FROM contacts ORDER BY nome COLLATE NOCASE');
 async function waMsg_(db) {
   const r = await db.prepare("SELECT v FROM settings WHERE k = 'wa_msg'").first();
@@ -369,6 +374,7 @@ export async function onRequestGet({ request, env, waitUntil }) {
   waitUntil(remind_(env, db).catch(() => {}));
   if (p.action === 'info') {
     const s = await settings_(db), left = await available_(db);
+    if (!invitoOk(s, request, p)) return json({ ok: true, open: false, closedByHand: true, riservato: true, available: 0, msg: RIS_MSG });
     return json({ ok: true, open: s.open && left > 0, closedByHand: !s.open, available: left, msg: s.msg || DEFAULT_MSG, price1: PRICE_1, price6: PRICE_6, minData: addDays(today_(), 1) });
   }
   if (p.action === 'report') {
@@ -400,7 +406,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const db = env.DB, ctx = { waitUntil };
   try {
     const d = JSON.parse(await request.text() || '{}');
-    if (!d.action) return await order_(db, env, ctx, d);
+    if (!d.action) return await order_(db, env, ctx, d, request);
     if (d.action === 'login') return await login_(db, env, request, d);
     if (d.action === 'pwReset') return await pwReset_(db, env, request, d);
 
@@ -464,13 +470,14 @@ export function onRequestOptions() {
   return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type, X-Ovi-Session' } });
 }
 
-async function order_(db, env, ctx, d) {
+async function order_(db, env, ctx, d, request) {
   const rid = d.rid ? 'rid:' + String(d.rid).slice(0, 64) : '';
   if (rid) {   // stesso invio ripetuto: restituisco la risposta di prima
     const prev = await db.prepare('SELECT res FROM idem WHERE rid = ?').bind(rid).first();
     if (prev) return json(JSON.parse(prev.res));
   }
   const s = await settings_(db), left = await available_(db);
+  if (!invitoOk(s, request, d)) return json({ ok: false, closed: true, riservato: true, error: RIS_MSG });
   // (dal 27/10/26 niente più richieste da confermare: anche "per una data" è una prenotazione valida subito)
   // "per una data" si può prenotare anche a uova finite (è un promemoria): si blocca solo se chiuso a mano
   if (!s.open || (left <= 0 && d.tipo !== 'data')) return json({ ok: false, closed: true, error: s.msg || DEFAULT_MSG });
@@ -753,6 +760,11 @@ async function saveSettings_(db, d) {
   const st = [];
   if ('open' in d) st.push(db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').bind('open', d.open ? '1' : '0'));
   if ('msg' in d) st.push(db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').bind('msg', clean(d.msg, 300)));
+  if ('riservato' in d) {
+    st.push(db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').bind('riservato', d.riservato ? '1' : '0'));
+    if (d.riservato && !(await getS(db, 'invito'))) d.nuovoInvito = true;
+  }
+  if (d.nuovoInvito) st.push(db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').bind('invito', newInvito()));
   if (st.length) await db.batch(st);
   return json({ ok: true, settings: await settings_(db) });
 }
