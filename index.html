@@ -201,7 +201,7 @@ footer{text-align:center;margin-top:28px}
 
     <div class="field"><label for="note">Note <span class="opt">(facoltative)</span></label><textarea id="note" rows="2" maxlength="500" placeholder="Vuoi dirmi qualcosa?"></textarea></div>
 
-    <button class="btn" id="go" type="submit">Prenota le uova</button>
+    <button class="btn" id="go" type="submit">Invia la richiesta</button>
     <div class="msg" id="msg"></div>
   </form>
 
@@ -245,7 +245,7 @@ function setMode(m){
   MODE = m;
   document.querySelectorAll('.mode').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   $('dateBox').hidden = m !== 'data';
-  $('go').textContent = 'Prenota le uova';
+  $('go').textContent = 'Invia la richiesta';
   $('msg').className = 'msg';
   if (m === 'subito' && AVAIL != null) while (n() > AVAIL) { if (q[6]) q[6]--; else q[1]--; }
   render();
@@ -309,7 +309,7 @@ $('f').addEventListener('submit', async e => {
     $('done').style.display='block'; window.scrollTo({top:0,behavior:'smooth'});
     if(j.left != null){ AVAIL = j.left; $('availN').textContent = AVAIL; }
   }catch(x){ err('Non siamo riusciti a inviare la prenotazione. Riprova tra poco. ('+x.message+')'); }
-  finally{ btn.disabled=false; btn.textContent = 'Prenota le uova'; }
+  finally{ btn.disabled=false; btn.textContent = 'Invia la richiesta'; }
 });
 
 $('again').onclick = () => {
